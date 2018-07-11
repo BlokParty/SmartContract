@@ -1,8 +1,13 @@
 pragma solidity ^0.4.24;
 
-
+/**
+ * @title Ownable
+ * @dev The Ownable contract has an owner address, and provides basic authorization control
+ * functions, this simplifies the implementation of "user permissions".
+ */
 contract Ownable {
     address public owner;
+
 
     event OwnershipRenounced(address indexed previousOwner);
     event OwnershipTransferred (
@@ -10,24 +15,46 @@ contract Ownable {
         address indexed newOwner
     );
 
+
+  /**
+   * @dev The Ownable constructor sets the original `owner` of the contract to the sender
+   * account.
+   */
     constructor() public {
         owner = msg.sender;
     }
 
+  /**
+   * @dev Throws if called by any account other than the owner.
+   */
     modifier onlyOwner() {
         require(msg.sender == owner);
         _;
     }
 
+  /**
+   * @dev Allows the current owner to relinquish control of the contract.
+   * @notice Renouncing to ownership will leave the contract without an owner.
+   * It will not be possible to call the functions with the `onlyOwner`
+   * modifier anymore.
+   */
     function renounceOwnership() public onlyOwner {
         emit OwnershipRenounced(owner);
         owner = address(0);
     }
 
+  /**
+   * @dev Allows the current owner to transfer control of the contract to a newOwner.
+   * @param _newOwner The address to transfer ownership to.
+   */
     function transferOwnership(address _newOwner) public onlyOwner {
         _transferOwnership(_newOwner);
     }
 
+  /**
+   * @dev Transfers control of the contract to a newOwner.
+   * @param _newOwner The address to transfer ownership to.
+   */
     function _transferOwnership(address _newOwner) internal {
         require(_newOwner != address(0));
         emit OwnershipTransferred(owner, _newOwner);
@@ -36,6 +63,12 @@ contract Ownable {
 }
 
 interface ERC165 {
+    /// @notice Query if a contract implements an interface
+    /// @param interfaceID The interface identifier, as specified in ERC-165
+    /// @dev Interface identification is specified in ERC-165. This function
+    ///  uses less than 30,000 gas.
+    /// @return `true` if the contract implements `interfaceID` and
+    ///  `interfaceID` is not 0xffffffff, `false` otherwise
     function supportsInterface(bytes4 interfaceID) external view returns (bool);
 }
 
@@ -57,9 +90,27 @@ contract ERC721 is ERC165 {
     function isApprovedForAll(address _owner, address _operator) public view returns (bool);
 }
 
+///  Note: the ERC-165 identifier for this interface is 0x780e9d63.
 interface ERC721Enumerable {
+    /// @notice Count NFTs tracked by this contract
+    /// @return A count of valid NFTs tracked by this contract, where each one of
+    ///  them has an assigned and queryable owner not equal to the zero address
     function totalSupply() external view returns (uint256);
+
+    /// @notice Enumerate valid NFTs
+    /// @dev Throws if `_index` >= `totalSupply()`.
+    /// @param _index A counter less than `totalSupply()`
+    /// @return The token identifier for the `_index`th NFT,
+    ///  (sort order not specified)
     function tokenByIndex(uint256 _index) external view returns (uint256);
+
+    /// @notice Enumerate NFTs assigned to an owner
+    /// @dev Throws if `_index` >= `balanceOf(_owner)` or if
+    ///  `_owner` is the zero address, representing invalid NFTs.
+    /// @param _owner An address where we are interested in NFTs owned by them
+    /// @param _index A counter less than `balanceOf(_owner)`
+    /// @return The token identifier for the `_index`th NFT assigned to `_owner`,
+    ///   (sort order not specified)
     function tokenOfOwnerByIndex(address _owner, uint256 _index) external view returns (uint256);
 }
 
@@ -90,7 +141,7 @@ contract AACContract is Ownable, ERC721, ERC721Enumerable {
     
     // the first element in aacArray must be invalid for uidToAacIndex to work
     AAC[] aacArray;
-    mapping (uint => uint) uidToAacIndex;
+    mapping (uint => uint) public uidToAacIndex;
     uint public aacPrice = 0.0025 ether;
     uint nonce;
     
@@ -112,9 +163,9 @@ contract AACContract is Ownable, ERC721, ERC721Enumerable {
 
     function mint(bytes7 _uid) external payable {
         require (msg.value >= aacPrice);
-        require (_uid != 0);
+        require(_uid != 0);
         uint index = aacArray.push(AAC(msg.sender, uint(_uid), block.timestamp, _generateRandomNumber(), 0));
-        uidToAacIndex[uint(_uid)] = index - 1;
+        uidToAacIndex[uint(_uid)] = index;
 
         emit Transfer(0, msg.sender, uint(_uid));
     }
@@ -179,7 +230,7 @@ contract AACContract is Ownable, ERC721, ERC721Enumerable {
         uint[] memory result = new uint[](aacsOwned);
         for (uint i = 0; i < aacArray.length; i++) {
             if(aacArray[i].owner == _owner) {
-                result[counter] = aacArray[i].uid;
+                result[counter] = i;
                 counter++;
             }
         }
