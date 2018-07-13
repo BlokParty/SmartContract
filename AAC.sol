@@ -1,6 +1,5 @@
 pragma solidity ^0.4.24;
 
-
 contract Ownable {
     address public owner;
 
@@ -35,9 +34,11 @@ contract Ownable {
     }
 }
 
+
 interface ERC165 {
     function supportsInterface(bytes4 interfaceID) external view returns (bool);
 }
+
 
 contract ERC721 is ERC165 {
     event Transfer(address indexed _from, address indexed _to, uint256 indexed _tokenId);
@@ -57,6 +58,7 @@ contract ERC721 is ERC165 {
     function isApprovedForAll(address _owner, address _operator) public view returns (bool);
 }
 
+
 interface ERC721Enumerable {
     function totalSupply() external view returns (uint256);
     function tokenByIndex(uint256 _index) external view returns (uint256);
@@ -69,8 +71,8 @@ interface ERC721TokenReceiver {
 }
 
 
-contract AACContract is Ownable, ERC721, ERC721Enumerable {
-    
+contract AACToken is Ownable, ERC721, ERC721Enumerable {
+
     struct AAC {
         // owner ID list
         address owner;
@@ -78,21 +80,17 @@ contract AACContract is Ownable, ERC721, ERC721Enumerable {
         uint uid;
         // timestamp
         uint timestamp;
-        // seed
-        bytes32 seed;
         // exp
         uint exp;
         // public data
-        
+        bytes publicData;
         // encrypted data
-        
+        //bytes privateData;        // use this if/when needed
     }
     
     // the first element in aacArray must be invalid for uidToAacIndex to work
     AAC[] aacArray;
     mapping (uint => uint) uidToAacIndex;
-    uint public aacPrice = 0.0025 ether;
-    uint nonce;
     
     // id must correspond to a valid AAC
     modifier mustExist(uint _tokenId) {
@@ -106,30 +104,6 @@ contract AACContract is Ownable, ERC721, ERC721Enumerable {
         _;
     }
 
-    function changeAacPrice(uint _newPrice) external onlyOwner {
-        aacPrice = _newPrice;
-    }
-
-    function mint(bytes7 _uid) external payable {
-        require (msg.value >= aacPrice);
-        require (_uid != 0);
-        uint index = aacArray.push(AAC(msg.sender, uint(_uid), block.timestamp, _generateRandomNumber(), 0));
-        uidToAacIndex[uint(_uid)] = index - 1;
-
-        emit Transfer(0, msg.sender, uint(_uid));
-    }
-
-    function getAac(uint _uid) external view mustExist(_uid) returns (address, uint, bytes32, uint) {
-        AAC memory aac = aacArray[uidToAacIndex[_uid]];
-        return(aac.owner, aac.timestamp, aac.seed, aac.exp);
-    }
-
-    function _generateRandomNumber() private returns (bytes32) {
-        nonce++;
-        return keccak256(
-            abi.encodePacked(block.timestamp, msg.sender, nonce)
-        );
-    }
     
     //--------------------------------------------------------------------------
     // ERC-165 support
@@ -304,5 +278,67 @@ contract AACContract is Ownable, ERC721, ERC721Enumerable {
                 }
             }
         }
+    }
+}
+
+
+    
+contract AACFunctionality is AACToken {
+    event Link(uint _oldUid, uint _newUid);
+    
+    uint public aacPrice = 0.0025 ether;
+    uint nonce;
+    uint constant uidBuffer = 100000000000000000; // 17 zeroes
+    address playToken = 0x3bD0719846900fA6D73f992f7d2538820e8b193A;
+
+    bytes4 spendAndMintFunctionHash;
+
+    function changeAacPrice(uint _newPrice) external onlyOwner {
+        aacPrice = _newPrice;
+    }
+
+    function mintAndSend(address _to) external {
+        require(msg.sig == spendAndMintFunctionHash);
+
+        uint uid = uidBuffer + aacArray.length;
+        uint index = aacArray.push(AAC(_to, uid, block.timestamp, 0, ""));
+        uidToAacIndex[uid] = index - 1;
+
+        emit Transfer(0, msg.sender, uid);
+    }
+
+    function link(bytes7 _newUid, uint _aacId, bytes _publicData) external mustExist(_aacId) {
+        AAC storage aac = aacArray[uidToAacIndex[_aacId]];
+        // sender must own AAC
+        require (msg.sender == aac.owner);
+        // _aacId must be an empty AAC
+        require (_aacId > uidBuffer);
+        // _newUid field cannot be empty
+        require (_newUid > 0);
+        // an AAC with the new UID must not currently exist
+        require (uidToAacIndex[uint(_newUid)] == 0);
+
+        // set new UID's mapping to index to old UID's mapping
+        uidToAacIndex[uint(_newUid)] = uidToAacIndex[_aacId];
+        // reset old UID's mapping to index
+        uidToAacIndex[_aacId] = 0;
+        // set AAC's UID to new UID
+        aac.uid = uint(_newUid);
+        // set any public data
+        aac.publicData = _publicData;
+
+        emit Link(_aacId, uint(_newUid));
+    }
+
+    function getAac(uint _uid) external view mustExist(_uid) returns (address, uint, uint, uint, bytes) {
+        AAC memory aac = aacArray[uidToAacIndex[_uid]];
+        return(aac.owner, aac.uid, aac.timestamp, aac.exp, aac.publicData);
+    }
+
+    function _generateRandomNumber() private returns (bytes32) {
+        nonce++;
+        return keccak256(
+            abi.encodePacked(block.timestamp, msg.sender, nonce)
+        );
     }
 }
