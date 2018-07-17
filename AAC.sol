@@ -39,7 +39,7 @@ interface ERC165 {
     function supportsInterface(bytes4 interfaceID) external view returns (bool);
 }
 
-
+/*
 contract ERC721 is ERC165 {
     event Transfer(address indexed _from, address indexed _to, uint256 indexed _tokenId);
     event Approval(address indexed _owner, address indexed _approved, uint256 indexed _tokenId);
@@ -57,7 +57,7 @@ contract ERC721 is ERC165 {
     function getApproved(uint256 _tokenId) external view returns (address);
     function isApprovedForAll(address _owner, address _operator) public view returns (bool);
 }
-
+*/
 
 interface ERC721Enumerable {
     function totalSupply() external view returns (uint256);
@@ -123,11 +123,29 @@ contract AACToken is Ownable, ERC721, ERC721Enumerable {
     // ERC-721 support
     //--------------------------------------------------------------------------
     
+    /// @dev Transfer emits when ownership of an AAC changes by any mechanism.
+    ///  This event emits when NFTs are created (`from` == 0) and destroyed
+    ///  (`to` == 0). At the time of any transfer, the approved address
+    ///  for that NFT (if any) is reset to address(0).
+    event Transfer(address indexed _from, address indexed _to, uint256 indexed _tokenId);
+
+    /// @dev Approval emits when the approved address for an NFT is changed or
+    ///  reaffirmed. The zero address indicates there is no approved address.
+    ///  When a Transfer event emits, this also indicates that the approved
+    ///  address for that NFT (if any) is reset to none.
+    event Approval(address indexed _owner, address indexed _approved, uint256 indexed _tokenId);
+
+    /// @dev This emits when an operator is enabled or disabled for an owner.
+    ///  The operator can manage all NFTs of the owner.
+    event ApprovalForAll(address indexed _owner, address indexed _operator, bool _approved);
+
+
     // Mapping from token ID to approved address
     mapping (uint => address) idToApprovedAddress;
     // Mapping from owner to operator approvals
-    mapping (address => mapping (address => bool)) internal operatorApprovals;
-    
+    mapping (address => mapping (address => bool)) operatorApprovals;
+
+    // view functions    
     function ownerOf(uint256 _tokenId) public view mustExist(_tokenId) returns (address) {
         // owner must not be the zero address
         require (aacArray[uidToAacIndex[_tokenId]].owner != 0);
@@ -282,29 +300,46 @@ contract AACToken is Ownable, ERC721, ERC721Enumerable {
 }
 
 
+
+interface PLAY {
+    function balanceOf (address tokenOwner) external view returns (uint balance);
+    function transferAndLock (address to, uint numberOfYears, uint tokens) external;
+}
     
 contract AACFunctionality is AACToken {
     event Link(uint _oldUid, uint _newUid);
     
-    uint public aacPrice = 0.0025 ether;
-    uint nonce;
+    uint public priceToMint = 1000;    // PLAY needed to mint one AAC
     uint constant uidBuffer = 100000000000000000; // 17 zeroes
-    address playToken = 0x3bD0719846900fA6D73f992f7d2538820e8b193A;
-
-    bytes4 spendAndMintFunctionHash;
+    address playContract = 0x3bD0719846900fA6D73f992f7d2538820e8b193A;
+    PLAY play = PLAY(playContract);
 
     function changeAacPrice(uint _newPrice) external onlyOwner {
-        aacPrice = _newPrice;
+        priceToMint = _newPrice;
+    }
+
+    function mint() external {
+        require(play.balanceOf(msg.sender) >= priceToMint);
+
+        uint uid = uidBuffer + aacArray.length;
+        uint index = aacArray.push(AAC(msg.sender, uid, block.timestamp, 0, ""));
+        uidToAacIndex[uid] = index - 1;
+
+        play.transferAndLock (owner, 2, priceToMint);
+
+        emit Transfer(0, msg.sender, uid);
     }
 
     function mintAndSend(address _to) external {
-        require(msg.sig == spendAndMintFunctionHash);
+        require(play.balanceOf(msg.sender) >= priceToMint);
 
         uint uid = uidBuffer + aacArray.length;
         uint index = aacArray.push(AAC(_to, uid, block.timestamp, 0, ""));
         uidToAacIndex[uid] = index - 1;
 
-        emit Transfer(0, msg.sender, uid);
+        play.transferAndLock (owner, 2, priceToMint);
+
+        emit Transfer(0, _to, uid);
     }
 
     function link(bytes7 _newUid, uint _aacId, bytes _publicData) external mustExist(_aacId) {
@@ -333,12 +368,5 @@ contract AACFunctionality is AACToken {
     function getAac(uint _uid) external view mustExist(_uid) returns (address, uint, uint, uint, bytes) {
         AAC memory aac = aacArray[uidToAacIndex[_uid]];
         return(aac.owner, aac.uid, aac.timestamp, aac.exp, aac.publicData);
-    }
-
-    function _generateRandomNumber() private returns (bytes32) {
-        nonce++;
-        return keccak256(
-            abi.encodePacked(block.timestamp, msg.sender, nonce)
-        );
     }
 }
