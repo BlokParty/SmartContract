@@ -510,19 +510,16 @@ interface PlayInterface {
     function balanceOf(address tokenOwner) external view returns (uint);
     
     //-------------------------------------------------------------------------
-    /// @notice Send `(tokens/1000000000000000000).fixed(0,18)` PLAY from 
-    ///  `from` to `to`, then lock for `numberOfYears` years.
+    /// @notice Send `(tokens/1000000000000000000).fixed(0,18)` PLAY to `to`,
+    ///  then lock for `numberOfYears` years.
     /// @dev Throws if amount to send is zero. Throws if `msg.sender` has
-    ///  insufficient allowance for transfer. Throws if `from` has 
     ///  insufficient balance for transfer. Throws if `to` is the zero
     ///  address. Emits transfer and lock events.
-    /// @param from The token owner whose PLAY is being sent. Sender must be
-    ///  an approved spender.
     /// @param to The address to where PLAY is being sent and locked.
+    /// @param numberOfYears The number of years the tokens will be locked.
     /// @param tokens The number of tokens to send (in pWei).
     //-------------------------------------------------------------------------
-    function transferFromAndLock(
-        address from, 
+    function transferAndLock(
         address to, 
         uint numberOfYears, 
         uint tokens
@@ -563,36 +560,30 @@ contract AacCreation is Ownable, AacTransfers, AacInterfaceSupport {
     }
 
     //-------------------------------------------------------------------------
-    /// @notice Send and lock PLAY to mint a new empty AAC for yourself.
-    /// @dev Sender must have approved this contract address as an authorized
-    ///  spender with at least "priceToMint" PLAY. Throws if the sender has
-    ///  insufficient PLAY. Throws if sender has not granted this contract's
-    ///  address sufficient allowance.
     //-------------------------------------------------------------------------
     function mint() external {
-        play.transferFromAndLock (msg.sender, owner, 2, priceToMint);
+        require(play.balanceOf(msg.sender) >= priceToMint);
 
         uint uid = uidBuffer + aacArray.length;
         uint index = aacArray.push(AAC(msg.sender, uid, block.timestamp, 0, ""));
         uidToAacIndex[uid] = index - 1;
+
+        play.transferAndLock (owner, 2, priceToMint);
 
         emit Transfer(0, msg.sender, uid);
     }
 
 
     //-------------------------------------------------------------------------
-    /// @notice Send and lock PLAY to mint a new empty AAC for 'to'.
-    /// @dev Sender must have approved this contract address as an authorized
-    ///  spender with at least "priceToMint" PLAY. Throws if the sender has
-    ///  insufficient PLAY. Throws if sender has not granted this contract's
-    ///  address sufficient allowance.
     //-------------------------------------------------------------------------
     function mintAndSend(address _to) external {
-        play.transferFromAndLock (msg.sender, owner, 2, priceToMint);
+        require(play.balanceOf(msg.sender) >= priceToMint);
 
         uint uid = uidBuffer + aacArray.length;
         uint index = aacArray.push(AAC(_to, uid, block.timestamp, 0, ""));
         uidToAacIndex[uid] = index - 1;
+
+        play.transferAndLock (owner, 2, priceToMint);
 
         emit Transfer(0, _to, uid);
     }

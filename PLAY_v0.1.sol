@@ -148,7 +148,7 @@ contract PLAYToken {
     /// @return The token's name as a string
     //-------------------------------------------------------------------------
     function name() external pure returns (string) { 
-        return "PLAY Network Token"; 
+        return "Pretty Leggings And Yogapants Network"; 
     }
 
     //-------------------------------------------------------------------------
