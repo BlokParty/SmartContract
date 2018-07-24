@@ -276,13 +276,11 @@ contract AacTransfers is AacOwnership {
     }
     
     //-------------------------------------------------------------------------
-    /// @notice Enable or disable approval for a third party ("operator") to
-    ///  manage all of sender's AACs
-    /// @dev Emits the ApprovalForAll event. The contract MUST allow multiple
-    ///  operators per owner.
-    /// @param _operator Address to add to the set of authorized operators
-    /// @param _approved True if the operator is approved, false to revoke
-    ///  approval
+    /// @notice Get whether _operator is approved to manage all of _owner's
+    ///  AACs
+    /// @param _owner AAC Owner.
+    /// @param _operator Address to check for approval.
+    /// @return True if _operator is approved to manage all of _owner's AACs.
     //-------------------------------------------------------------------------
     function isApprovedForAll(
         address _owner, 
