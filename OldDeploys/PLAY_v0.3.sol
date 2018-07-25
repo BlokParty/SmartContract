@@ -555,7 +555,6 @@ contract ColorToken is LockToken, Ownable {
         address creator;
         string name;
         mapping (address => uint) balances;
-        mapping (uint => uint) uidBalances;
     }
 
     // array containing all colored token data
@@ -713,14 +712,6 @@ contract ColorToken is LockToken, Ownable {
         return coloredTokens[colorIndex].balances[tokenOwner];
     }
 
-    function getColoredTokenBalance(
-        uint uid,
-        uint colorIndex
-    ) external view returns (uint) {
-        return coloredTokens[colorIndex].uidBalances[uid];
-    }
-
-
     //-------------------------------------------------------------------------
     /// @notice Get the name and creator address of colored token with index
     ///  `colorIndex`
@@ -769,24 +760,13 @@ interface AACOwnership {
 //-----------------------------------------------------------------------------
 contract AACInteraction is ColorToken {
     //-------------------------------------------------------------------------
-    /// @dev Emits when colored tokens are deposited into AACs. Color
-    ///  equivalent to PLAY.transfer().
+    /// @dev Emits when colored tokens are deposited into or withdrawn from 
+    ///  AACs. Color equivalent to PLAY.transfer().
     //-------------------------------------------------------------------------
-    event Deposit(
+    event ColorTransfer(
         address indexed from, 
-        uint indexed to, 
+        address indexed to, 
         uint indexed colorIndex, 
-        uint tokens
-    );
-
-    //-------------------------------------------------------------------------
-    /// @dev Emits when colored tokens are withdrawn from AACs. Color
-    ///  equivalent to PLAY.transfer().
-    //-------------------------------------------------------------------------
-    event Withdraw(
-        uint indexed from,
-        address indexed to,
-        uint indexed colorIndex,
         uint tokens
     );
 
@@ -836,9 +816,9 @@ contract AACInteraction is ColorToken {
         // deduct colored tokens from sender
         coloredTokens[colorIndex].balances[msg.sender] -= tokens;
         // add tokens to AAC #UID
-        coloredTokens[colorIndex].uidBalances[uid] += tokens;
+        coloredTokens[colorIndex].balances[address(uid)] += tokens;
         // emit color transfer event
-        emit Deposit(msg.sender, uid, colorIndex, tokens);
+        emit ColorTransfer(msg.sender, address(uid), colorIndex, tokens);
     }
 
     //-------------------------------------------------------------------------
@@ -880,9 +860,9 @@ contract AACInteraction is ColorToken {
         // deduct tokens from token owner's account
         coloredTokens[colorIndex].balances[from] -= tokens;
         // add tokens to AAC #UID
-        coloredTokens[colorIndex].uidBalances[uid] += tokens;
+        coloredTokens[colorIndex].balances[address(uid)] += tokens;
         // emit color transfer event
-        emit Deposit(from, uid, colorIndex, tokens);
+        emit ColorTransfer(from, address(uid), colorIndex, tokens);
     }
 
     //-------------------------------------------------------------------------
@@ -904,15 +884,15 @@ contract AACInteraction is ColorToken {
         // uid must be a valid UID
         require (uid < MAX_UID);
         // AAC #uid must have sufficient colored token balance
-        require (tokens <= coloredTokens[colorIndex].uidBalances[uid]);
+        require (tokens <= coloredTokens[colorIndex].balances[address(uid)]);
         // sender must be owner of AAC #uid
         require (msg.sender == aac.ownerOf(uid));
         // deduct tokens from AAC #UID
-        coloredTokens[colorIndex].uidBalances[uid] -= tokens;
+        coloredTokens[colorIndex].balances[address(uid)] -= tokens;
         // add tokens to sender's account
         coloredTokens[colorIndex].balances[msg.sender] += tokens;
         // emit color transfer event
-        emit Withdraw(uid, msg.sender, colorIndex, tokens);
+        emit ColorTransfer(address(uid), msg.sender, colorIndex, tokens);
     }
 
     //-------------------------------------------------------------------------
@@ -942,7 +922,7 @@ contract AACInteraction is ColorToken {
         // uid must be a valid UID
         require (from < MAX_UID);
         // AAC #uid must have sufficient colored token balance
-        require (tokens <= coloredTokens[colorIndex].uidBalances[from]);
+        require (tokens <= coloredTokens[colorIndex].balances[address(from)]);
         // sender must be owner of AAC #uid
         require (msg.sender == aac.ownerOf(from));
         // msg.sender must be the approved address of AAC #uid, or an authorized
@@ -952,10 +932,34 @@ contract AACInteraction is ColorToken {
             aac.isApprovedForAll(to, msg.sender)
         );
         // deduct tokens from AAC #UID
-        coloredTokens[colorIndex].uidBalances[from] -= tokens;
+        coloredTokens[colorIndex].balances[address(from)] -= tokens;
         // add tokens to sender's account
         coloredTokens[colorIndex].balances[to] += tokens;
         // emit color transfer event
-        emit Withdraw(from, to, colorIndex, tokens);
+        emit ColorTransfer(address(from), to, colorIndex, tokens);
+    }
+
+    //-------------------------------------------------------------------------
+    /// @notice Withdraw all uncolored PLAY tokens from AAC #`uid`.
+    /// @dev Throws if amount to withdraw is zero. Throws if `uid` is greater
+    ///  than maximum UID value. Emits transfer event.
+    /// @param uid The Unique ID of the AAC whose tokens are being withdrawn.
+    //-------------------------------------------------------------------------
+    function withdrawTrappedPLAY(uint uid) external  {
+        // uid must be a valid UID
+        require(uid < MAX_UID);
+        // create local address variable using uid
+        address uidAddress = address(uid);
+        // amount to withdraw must be more than zero
+        uint trappedPLAY = playBalances[uidAddress];
+        require (trappedPLAY > 0);
+        // store owner address in local variable
+        address owner = aac.ownerOf(uid);
+        // deduct all PLAY balance from uid's wallet
+        playBalances[uidAddress] -= trappedPLAY;
+        // add PLAY to uid owner's wallet
+        playBalances[owner] += trappedPLAY;
+        // emit transfer event
+        emit Transfer(uidAddress, owner, trappedPLAY);
     }
 }

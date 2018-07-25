@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Numerics;
 using UnityEngine;
 
 public class AacManager : MonoBehaviour {
@@ -8,7 +9,7 @@ public class AacManager : MonoBehaviour {
     public class AAC
     {
         public string owner;
-        public uint uid;
+        public BigInteger uid;
         public uint timestamp;
         public uint exp;
         public string data;

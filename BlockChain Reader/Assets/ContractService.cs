@@ -38,6 +38,8 @@ public class ContractService : MonoBehaviour {
         {
             StartCoroutine(GetAacs());
         }
+
+        StartCoroutine(GetBalance("0x48AeAD82bDeab9b51390d2b6Ce1841B5DDb64201"));
     }
 	
 	// Update is called once per frame
@@ -80,7 +82,7 @@ public class ContractService : MonoBehaviour {
         yield return aacContractRequest.SendRequest(aacTokenByIndexCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
 
         // decode the result
-        var uid = _aacContractReader.DecodeTokenByIndex(aacContractRequest.Result);
+        BigInteger uid = _aacContractReader.DecodeTokenByIndex(aacContractRequest.Result);
 
         // create a new call request
         aacContractRequest = new EthCallUnityRequest(_url);
@@ -122,17 +124,45 @@ public class ContractService : MonoBehaviour {
         playContractRequest = new EthCallUnityRequest(_url);
         var playGetLockedTokensCallInput = _playContractReader.CreateGetTotalLockedTokensCallInput(address);
         yield return playContractRequest.SendRequest(playGetLockedTokensCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
-        account.PLAY = _playContractReader.DecodeGetTotalLockedTokens(playContractRequest.Result);
+        account.Locked = _playContractReader.DecodeGetTotalLockedTokens(playContractRequest.Result);
 
-        // get Color balance
+        // Count Colored Token types and initialize colored balances in account
         playContractRequest = new EthCallUnityRequest(_url);
-        var playGetColoredTokensCallInput = _playContractReader.CreateGetColoredTokenBalanceCallInput(address);
-        yield return playContractRequest.SendRequest(playGetLockedTokensCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
-        account.PLAY = _playContractReader.DecodeGetTotalLockedTokens(playContractRequest.Result);
+        var playColoredTokensCountCallInput = _playContractReader.CreateColoredTokenCountCallInput();
+        yield return playContractRequest.SendRequest(playColoredTokensCountCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
+        uint coloredTypes = _playContractReader.DecodeColoredTokenCount(playContractRequest.Result);
+        account.InitializeColoredBalances(coloredTypes);
 
-        playContractRequest = new EthCallUnityRequest(_url);
-        var playGetColoredTokensCallInput = _playContractReader.CreateGetColoredTokenBalanceCallInput(address);
-        yield return playContractRequest.SendRequest(playGetLockedTokensCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
-        account.PLAY = _playContractReader.DecodeGetTotalLockedTokens(playContractRequest.Result);
+        // get Colored Token balances
+        for (uint i = 0; i < coloredTypes; ++i)
+        {
+            playContractRequest = new EthCallUnityRequest(_url);
+            var playGetColoredTokensCallInput = _playContractReader.CreateGetColoredTokenBalanceCallInput(address, i);
+            yield return playContractRequest.SendRequest(playGetColoredTokensCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
+            account.SetColor(i, _playContractReader.DecodeGetTotalLockedTokens(playContractRequest.Result));
+        }
+
+        account.stringifyBalances();
+    }
+
+    public IEnumerator GetBalance(BigInteger uid)
+    {
+        // Count Colored Token types and initialize colored balances in account
+        var playContractRequest = new EthCallUnityRequest(_url);
+        var playColoredTokensCountCallInput = _playContractReader.CreateColoredTokenCountCallInput();
+        yield return playContractRequest.SendRequest(playColoredTokensCountCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
+        uint coloredTypes = _playContractReader.DecodeColoredTokenCount(playContractRequest.Result);
+        account.InitializeColoredBalances(coloredTypes);
+
+        // get Colored Token balances
+        for (uint i = 0; i < coloredTypes; ++i)
+        {
+            playContractRequest = new EthCallUnityRequest(_url);
+            var playGetColoredTokensCallInput = _playContractReader.CreateGetColoredTokenBalanceCallInput(uid, i);
+            yield return playContractRequest.SendRequest(playGetColoredTokensCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
+            account.SetColor(i, _playContractReader.DecodeGetTotalLockedTokens(playContractRequest.Result));
+        }
+
+        account.stringifyBalances();
     }
 }
