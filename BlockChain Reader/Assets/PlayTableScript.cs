@@ -29,6 +29,14 @@ public class PlayTableScript : MonoBehaviour {
     public void GetBalancesFromInput()
     {
         BigInteger uid = BigInteger.Parse(input.text);
-        StartCoroutine(service.GetBalance(uid));
+        // true if input is an address
+        if (uid > 0xFFFFFFFFFFFFFF)
+        {
+            StartCoroutine(service.GetBalance(input.text));
+        }
+        else
+        {
+            StartCoroutine(service.GetBalance(uid));
+        }
     }
 }

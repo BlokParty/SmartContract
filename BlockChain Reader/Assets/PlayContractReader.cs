@@ -48,6 +48,11 @@ public class PlayContractReader
         return contract.GetFunction("coloredTokenCount");
     }
 
+    public Function GetFunctionGetColoredToken()
+    {
+        return contract.GetFunction("getColoredToken");
+    }
+
     //---------------------------------------------------------------------------------------------
     // CREATE CALL INPUT
     //---------------------------------------------------------------------------------------------
@@ -80,6 +85,12 @@ public class PlayContractReader
         var function = GetFunctionColoredTokenCount();
         return function.CreateCallInput();
     }
+
+    public CallInput CreateGetColoredTokenCallInput(uint colorIndex)
+    {
+        var function = GetFunctionGetColoredToken();
+        return function.CreateCallInput(colorIndex);
+    }
     
     //---------------------------------------------------------------------------------------------
     // DECODE RESULT
@@ -106,5 +117,23 @@ public class PlayContractReader
     {
         var function = GetFunctionColoredTokenCount();
         return function.DecodeSimpleTypeOutput<uint>(result);
+    }
+
+    public GetColoredTokenDto DecodeGetColoredToken(string result)
+    {
+        var function = GetFunctionGetColoredToken();
+        return function.DecodeDTOTypeOutput<GetColoredTokenDto>(result);
+    }
+
+    //---------------------------------------------------------------------------------------------
+    // DATA TYPE OBJECT
+    //---------------------------------------------------------------------------------------------
+    [FunctionOutput]
+    public class GetColoredTokenDto
+    {
+        [Parameter("address", "creator", 1)]
+        public string Creator { get; set; }
+        [Parameter("string", "name", 2)]
+        public string Name { get; set; }
     }
 }

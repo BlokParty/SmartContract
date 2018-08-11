@@ -44,11 +44,14 @@ contract PLAYToken {
     //-------------------------------------------------------------------------
     function transfer(address to, uint tokens) public returns (bool) {
         // must be sending more than zero tokens
-        require (tokens > 0);
+        require (tokens > 0, "Cannot transfer zero tokens");
         // sender's account must have sufficient balance to transfer
-        require (playBalances[msg.sender] >= tokens);
+        require (
+            playBalances[msg.sender] >= tokens, 
+            "Insufficient tokens to transfer"
+        );
         // Tokens cannot be transferred to 0 unless burn is explicitly called
-        require (to != 0);
+        require (to != 0, "Cannot transfer to 0. Use 'burn'");
 
         // subtract amount from sender
         playBalances[msg.sender] -= tokens;
@@ -77,13 +80,21 @@ contract PLAYToken {
         address to, 
         uint tokens
     ) public returns (bool) {
+        // must be sending more than zero tokens
+        require (tokens > 0, "Cannot transfer zero tokens");
         // sender's allowance must be enough to transfer amount
-        require (allowances[from][msg.sender] >= tokens);
+        require (
+            allowances[from][msg.sender] >= tokens, 
+            "Insufficient allowance"
+        );
         // token owner must have sufficient balance to transfer
-        require (playBalances[from] >= tokens);
+        require (
+            playBalances[from] >= tokens, 
+            "Insufficient tokens to transfer"
+        );
         // Tokens cannot be transferred to 0 unless burnFrom is explicitly
         //  called
-        require (to != 0);
+        require (to != 0, "Cannot transfer to 0. Use 'burnFrom'");
 
         // subtract amount from sender's allowance
         allowances[from][msg.sender] -= tokens;
@@ -127,7 +138,7 @@ contract PLAYToken {
     /// @return The number of PLAY tokens owned by `tokenOwner` (in pWei).
     //-------------------------------------------------------------------------
     function balanceOf(address tokenOwner) public view returns (uint) {
-        require (tokenOwner != 0);
+        require (tokenOwner != 0, "Cannot query zero address");
         return playBalances[tokenOwner];
     }
 
@@ -181,9 +192,12 @@ contract BurnToken is PLAYToken {
     //-------------------------------------------------------------------------
     function burn(uint tokens) external returns (bool) {
         // tokens to burn must be greater than zero.
-        require (tokens > 0);
+        require (tokens > 0, "Cannot burn zero tokens");
         // sender's account must have sufficient balance to burn
-        require (playBalances[msg.sender] >= tokens);
+        require (
+            playBalances[msg.sender] >= tokens, 
+            "Insufficient tokens to burn"
+        );
         // subtract amount from token owner
         playBalances[msg.sender] -= tokens;
         // subtract amount from total supply
@@ -207,11 +221,17 @@ contract BurnToken is PLAYToken {
     //-------------------------------------------------------------------------
     function burnFrom(address from, uint tokens) external returns (bool) {
         // tokens to burn must be greater than zero.
-        require (tokens > 0);
+        require (tokens > 0, "Cannot burn zero tokens");
         // sender's allowance must be enough to burn amount
-        require (allowances[from][msg.sender] >= tokens);
+        require (
+            allowances[from][msg.sender] >= tokens,
+            "Insufficient allowance"
+        );
         // token owner's account must have sufficient balance to burn
-        require (playBalances[from] >= tokens);
+        require (
+            playBalances[from] >= tokens,
+            "Insufficient tokens to burn"
+        );
         // subtract amount from sender's allowance
         allowances[from][msg.sender] -= tokens;
         // subtract amount from token owner
@@ -263,11 +283,17 @@ contract LockToken is BurnToken {
     //-------------------------------------------------------------------------
     function lock(uint numberOfYears, uint tokens) external {
         // tokens to spend must be greater than zero.
-        require (tokens > 0);
+        require (tokens > 0, "Cannot lock zero tokens");
         // number of years must be a valid amount.
-        require (numberOfYears > 0 && numberOfYears <= maximumLockYears);
+        require (
+            numberOfYears > 0 && numberOfYears <= maximumLockYears,
+            "Invalid number of years"
+        );
         // sender's account must have sufficient balance to lock
-        require (playBalances[msg.sender] >= tokens);
+        require (
+            playBalances[msg.sender] >= tokens,
+            "Insufficient tokens to lock"
+        );
 
         // subtract amount from sender
         playBalances[msg.sender] -= tokens;
@@ -291,13 +317,22 @@ contract LockToken is BurnToken {
     //-------------------------------------------------------------------------
     function lockFrom(address from, uint numberOfYears, uint tokens) external {
         // tokens to spend must be greater than zero.
-        require (tokens > 0);
+        require (tokens > 0, "Cannot lock zero tokens");
         // number of years must be a valid amount.
-        require (numberOfYears > 0 && numberOfYears <= maximumLockYears);
+        require (
+            numberOfYears > 0 && numberOfYears <= maximumLockYears,
+            "Invalid number of years"
+        );
         // sender's allowance must be enough to lock amount
-        require (allowances[from][msg.sender] >= tokens);
+        require (
+            allowances[from][msg.sender] >= tokens,
+            "Insufficient allowance"
+        );
         // token owner's account must have sufficient balance to lock
-        require (playBalances[from] >= tokens);
+        require (
+            playBalances[from] >= tokens,
+            "Insufficient tokens to lock"
+        );
 
         // subtract amount from sender's allowance
         allowances[from][msg.sender] -= tokens;
@@ -381,7 +416,10 @@ contract LockToken is BurnToken {
         }
         // sender must either be tokenOwner or an approved address
         if (msg.sender != addressToUnlock) {
-            require (allowances[addressToUnlock][msg.sender] > 0);
+            require (
+                allowances[addressToUnlock][msg.sender] > 0,
+                "Not authorized to unlock for this address"
+            );
         }
 
         // create local variable for unlock total
@@ -416,10 +454,16 @@ contract LockToken is BurnToken {
         }
         // sender must either be tokenOwner or an approved address
         if (msg.sender != addressToUnlock) {
-            require (allowances[addressToUnlock][msg.sender] > 0);
+            require (
+                allowances[addressToUnlock][msg.sender] > 0,
+                "Not authorized to unlock for this address"
+            );
         }
         // year of locked tokens must be less than or equal to current year
-        require (currentYear >= year);
+        require (
+            currentYear >= year,
+            "Tokens from this year cannot be unlocked yet"
+            );
         // create local variable for unlock amount
         uint tokensToUnlock = tokensLockedUntilYear[addressToUnlock][year];
         // set locked token balance of year to 0
@@ -437,7 +481,10 @@ contract LockToken is BurnToken {
     function updateYearsSinceRelease() external {
         // check if years since first year is greater than the currentYear
         uint secondsSinceRelease = block.timestamp - FIRST_YEAR_TIMESTAMP;
-        require (currentYear < secondsSinceRelease / (365 * 1 days));
+        require (
+            currentYear < secondsSinceRelease / (365 * 1 days),
+            "Cannot update year yet"
+        );
         // increment years since release
         ++currentYear;
     }
@@ -498,7 +545,10 @@ contract Ownable {
     /// @dev Throws if called by any account other than `owner`.
     //-------------------------------------------------------------------------
     modifier onlyOwner() {
-        require(msg.sender == owner);
+        require(
+            msg.sender == owner,
+            "Function can only be called by contract owner"
+        );
         _;
     }
 
@@ -509,7 +559,10 @@ contract Ownable {
     //-------------------------------------------------------------------------
     function transferOwnership(address _newOwner) public onlyOwner {
         // for safety, new owner parameter must not be 0
-        require (_newOwner != address(0));
+        require (
+            _newOwner != address(0),
+            "New owner address cannot be zero"
+        );
         // define local variable for old owner
         address oldOwner = owner;
         // set owner to new owner
@@ -574,7 +627,10 @@ contract ColorToken is LockToken, Ownable {
         uint newAmount
     ) external onlyOwner {
         // newAmount must be greater than 0 and less than total tokens
-        require (newAmount > 0 && newAmount < totalPLAY);
+        require (
+            newAmount > 0 && newAmount < totalPLAY,
+            "Invalid amount"
+        );
         requiredLockedForColorRegistration = newAmount;
     }
     
@@ -589,10 +645,14 @@ contract ColorToken is LockToken, Ownable {
     function registerNewColor(string colorName) external returns (uint) {
         // sender must have enough locked tokens
         require (
-            getTotalLockedTokens(msg.sender) >= requiredLockedForColorRegistration
+            getTotalLockedTokens(msg.sender) >= requiredLockedForColorRegistration,
+            "Insufficient locked tokens"
         );
         // colorName must be a valid length
-        require (bytes(colorName).length > 0 && bytes(colorName).length < 32);
+        require (
+            bytes(colorName).length > 0 && bytes(colorName).length < 32,
+            "Invalid color name length"
+        );
         // push new colored token to colored token array and store the index
         uint index = coloredTokens.push(ColoredToken(msg.sender, colorName));
         return index;
@@ -609,7 +669,7 @@ contract ColorToken is LockToken, Ownable {
     //-------------------------------------------------------------------------
     function color(uint colorIndex, uint tokens) external {
         // colorIndex must be less than the number of colored tokens.
-        require (colorIndex < coloredTokens.length);
+        require (colorIndex < coloredTokens.length, "Invalid color index");
         // Initiate transfer. Fails if sender's balance is too low.
         transfer(coloredTokens[colorIndex].creator, tokens);
         // add amount to sender's colored token balance
@@ -632,7 +692,7 @@ contract ColorToken is LockToken, Ownable {
     //-------------------------------------------------------------------------
     function colorFrom(address from, uint colorIndex, uint tokens) external {
         // colorIndex must be less than the number of colored tokens.
-        require (colorIndex < coloredTokens.length);
+        require (colorIndex < coloredTokens.length, "Invalid color index");
         // Initiate transferFrom. Fails if sender's allowance is too low or
         //  token owner's balance is too low.
         transferFrom(from, coloredTokens[colorIndex].creator, tokens);
@@ -654,11 +714,14 @@ contract ColorToken is LockToken, Ownable {
     //-------------------------------------------------------------------------
     function spend(uint colorIndex, uint tokens) external returns (bool) {
         // tokens to spend must be greater than zero.
-        require (tokens > 0);
+        require (tokens > 0, "Cannot spend zero tokens");
         // colorIndex must be valid color
-        require (colorIndex < coloredTokens.length);
+        require (colorIndex < coloredTokens.length, "Invalid color index");
         // token owner's balance must be enough to spend tokens
-        require (coloredTokens[colorIndex].balances[msg.sender] >= tokens);
+        require (
+            coloredTokens[colorIndex].balances[msg.sender] >= tokens,
+            "Insufficient tokens to spend"
+        );
         // deduct the tokens from the sender's balance
         coloredTokens[colorIndex].balances[msg.sender] -= tokens;
         // emit spend event
@@ -684,13 +747,19 @@ contract ColorToken is LockToken, Ownable {
         uint tokens
     ) external returns (bool) {
         // tokens to spend must be greater than zero.
-        require (tokens > 0);
+        require (tokens > 0, "Cannot spend zero tokens");
         // colorIndex must be valid color
-        require (colorIndex < coloredTokens.length);
+        require (colorIndex < coloredTokens.length, "Invalid color index");
         // sender must be colored token creator
-        require (msg.sender == coloredTokens[colorIndex].creator);
+        require (
+            msg.sender == coloredTokens[colorIndex].creator,
+            "Not authorized to spend for this address"
+        );
         // token owner's balance must be enough to spend tokens
-        require (coloredTokens[colorIndex].balances[from] >= tokens);
+        require (
+            coloredTokens[colorIndex].balances[from] >= tokens,
+            "Insufficient balance to spend"
+        );
         // deduct the tokens from token owner's balance
         coloredTokens[colorIndex].balances[from] -= tokens;
         // emit spend event
@@ -713,7 +782,15 @@ contract ColorToken is LockToken, Ownable {
         return coloredTokens[colorIndex].balances[tokenOwner];
     }
 
-    function getColoredTokenBalance(
+    //-------------------------------------------------------------------------
+    /// @notice Get the number of colored tokens with color index `colorIndex`
+    ///  owned by AAC #`uid`.
+    /// @param uid The AAC with deposited color tokens.
+    /// @param colorIndex Index of the colored token to query.
+    /// @return The number of colored tokens with color index `colorIndex`
+    ///  owned by AAC #`uid`.
+    //-------------------------------------------------------------------------
+    function getDepositedColoredTokenBalance(
         uint uid,
         uint colorIndex
     ) external view returns (uint) {
@@ -802,7 +879,7 @@ contract AACInteraction is ColorToken {
     //-------------------------------------------------------------------------
     function setAacContractAddress (address aacAddress) external onlyOwner {
         // aacAddress must not be zero address
-        require (aacAddress != address(0));
+        require (aacAddress != address(0), "Address cannot be zero");
         // initialize contract to aacAddress
         aac = AACOwnership(aacAddress);
     }
@@ -821,17 +898,21 @@ contract AACInteraction is ColorToken {
     //-------------------------------------------------------------------------
     function deposit (uint colorIndex, uint uid, uint tokens) external {
         // tokens to deposit must be greater than 0
-        require (tokens > 0);
+        require (tokens > 0, "Cannot deposit zero tokens");
         // colorIndex must be valid color
-        require (colorIndex < coloredTokens.length);
+        require (colorIndex < coloredTokens.length, "Invalid color index");
         // sender must have sufficient colored token balance
-        require (coloredTokens[colorIndex].balances[msg.sender] >= tokens);
+        require (
+            coloredTokens[colorIndex].balances[msg.sender] >= tokens,
+            "Insufficient tokens to deposit"
+        );
         // uid must be a valid UID
-        require (uid < MAX_UID);
-        // msg.sender must be owner of AAC #uid
+        require (uid < MAX_UID, "Invalid UID");
+        // msg.sender must be owner of AAC #uid or colored token creator
         require (
             msg.sender == aac.ownerOf(uid) ||
-            msg.sender == coloredTokens[colorIndex].creator
+            msg.sender == coloredTokens[colorIndex].creator,
+            "Not authorized to deposit into this AAC"
         );
         // deduct colored tokens from sender
         coloredTokens[colorIndex].balances[msg.sender] -= tokens;
@@ -862,20 +943,27 @@ contract AACInteraction is ColorToken {
         uint tokens
     ) external {
         // tokens to deposit must be greater than 0
-        require (tokens > 0);
+        require (tokens > 0, "Cannot deposit zero tokens");
         // colorIndex must be valid color
-        require (colorIndex < coloredTokens.length);
+        require (colorIndex < coloredTokens.length, "Invalid color index");
         // token owner must have sufficient colored token balance
-        require (tokens <= coloredTokens[colorIndex].balances[msg.sender]);
+        require (
+            tokens <= coloredTokens[colorIndex].balances[msg.sender],
+            "Insufficient tokens to deposit"
+        );
         // uid must be a valid UID
-        require (uid < MAX_UID);
+        require (uid < MAX_UID, "Invalid UID");
         // token owner must be owner of AAC #uid
-        require (from == aac.ownerOf(uid));
+        require (
+            from == aac.ownerOf(uid), 
+            "Not authorized to deposit into this AAC"
+        );
         // msg.sender must be the approved address of AAC #uid, or an authorized
         //  operator for from
         require (
             msg.sender == aac.getApproved(uid) ||
-            aac.isApprovedForAll(from, msg.sender)
+            aac.isApprovedForAll(from, msg.sender),
+            "Not authorized to deposit into this AAC"
         );
         // deduct tokens from token owner's account
         coloredTokens[colorIndex].balances[from] -= tokens;
@@ -897,65 +985,31 @@ contract AACInteraction is ColorToken {
     /// @param tokens The number of colored tokens to withdraw (in pWei).
     //-------------------------------------------------------------------------
     function withdraw (uint colorIndex, uint uid, uint tokens) external {
-        // tokens to deposit must be greater than 0
-        require (tokens > 0);
+        // tokens to withdraw must be greater than 0
+        require (tokens > 0, "Cannot withdraw zero tokens");
         // colorIndex must be valid color
-        require (colorIndex < coloredTokens.length);
+        require (colorIndex < coloredTokens.length, "Invalid color index");
         // uid must be a valid UID
-        require (uid < MAX_UID);
+        require (uid < MAX_UID, "Invalid UID");
         // AAC #uid must have sufficient colored token balance
-        require (tokens <= coloredTokens[colorIndex].uidBalances[uid]);
-        // sender must be owner of AAC #uid
-        require (msg.sender == aac.ownerOf(uid));
+        require (
+            tokens <= coloredTokens[colorIndex].uidBalances[uid],
+            "Insufficient tokens to withdraw"
+        );
+        address owner = aac.ownerOf(uid);
+        // sender must be owner of AAC #uid, or sender must be the approved
+        // address of AAC #uid, or an authorized operator for AAC owner
+        require (
+            msg.sender == owner || 
+            msg.sender == aac.getApproved(uid) ||
+            aac.isApprovedForAll(owner, msg.sender),
+            "Not authorized to withdraw from this AAC"
+        );
         // deduct tokens from AAC #UID
         coloredTokens[colorIndex].uidBalances[uid] -= tokens;
         // add tokens to sender's account
-        coloredTokens[colorIndex].balances[msg.sender] += tokens;
+        coloredTokens[colorIndex].balances[owner] += tokens;
         // emit color transfer event
-        emit Withdraw(uid, msg.sender, colorIndex, tokens);
-    }
-
-    //-------------------------------------------------------------------------
-    /// @notice Withdraw `(tokens/1000000000000000000).fixed(0,18)` colored 
-    ///  tokens with index `colorIndex` from AAC #`from` to `to`.
-    /// @dev Throws if amount to withdraw is zero. Throws if colorIndex is
-    ///  greater than number of colored tokens. Throws if `from` is greater
-    ///  than maximum UID value. Throws if AAC #`from` has insufficient balance
-    ///  to withdraw. Throws if `to` is not the owner of AAC #`from`. Throws
-    ///  if sender is not the approved address of AAC #`from` or an authorized
-    ///  operator for `to`.
-    /// @param from The Unique ID of the AAC whose tokens are being withdrawn.
-    /// @param to The recipient of withdrawn colored tokens.
-    /// @param colorIndex The index of the color to withdraw.
-    /// @param tokens The number of colored tokens to withdraw (in pWei).
-    //-------------------------------------------------------------------------
-    function withdrawFrom (
-        uint from,
-        address to,
-        uint colorIndex,
-        uint tokens
-    ) external {        
-        // tokens to deposit must be greater than 0
-        require (tokens > 0);
-        // colorIndex must be valid color
-        require (colorIndex < coloredTokens.length);
-        // uid must be a valid UID
-        require (from < MAX_UID);
-        // AAC #uid must have sufficient colored token balance
-        require (tokens <= coloredTokens[colorIndex].uidBalances[from]);
-        // sender must be owner of AAC #uid
-        require (msg.sender == aac.ownerOf(from));
-        // msg.sender must be the approved address of AAC #uid, or an authorized
-        //  operator for from
-        require (
-            msg.sender == aac.getApproved(from) ||
-            aac.isApprovedForAll(to, msg.sender)
-        );
-        // deduct tokens from AAC #UID
-        coloredTokens[colorIndex].uidBalances[from] -= tokens;
-        // add tokens to sender's account
-        coloredTokens[colorIndex].balances[to] += tokens;
-        // emit color transfer event
-        emit Withdraw(from, to, colorIndex, tokens);
+        emit Withdraw(uid, owner, colorIndex, tokens);
     }
 }

@@ -39,13 +39,35 @@ public class ContractService : MonoBehaviour {
             StartCoroutine(GetAacs());
         }
 
-        StartCoroutine(GetBalance("0x48AeAD82bDeab9b51390d2b6Ce1841B5DDb64201"));
+        StartCoroutine(GetBalance(account.Account));
+        StartCoroutine(GetOwnedAacs(account.Account));
     }
 	
-	// Update is called once per frame
-	void Update () {
-		
-	}
+	IEnumerator GetOwnedAacs(string address)
+    {
+        var aacContractRequest = new EthCallUnityRequest(_url);
+        var balanceOfCallInput = _aacContractReader.CreateBalanceOfCallInput(address);
+        yield return aacContractRequest.SendRequest(balanceOfCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
+        account.InitializeOwnedAacs(_aacContractReader.DecodeBalanceOf(aacContractRequest.Result));
+        print("number");
+
+        aacContractRequest = new EthCallUnityRequest(_url);
+        var tokensOfOwnerCallInput = _aacContractReader.CreateTokensOfOwnerCallInput(address);
+        yield return aacContractRequest.SendRequest(tokensOfOwnerCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest()); 
+        List<BigInteger> uids = _aacContractReader.DecodeTokensOfOwner(aacContractRequest.Result);
+        print("uids");
+
+        for(uint i = 0; i < uids.Count; ++i)
+        {
+            aacContractRequest = new EthCallUnityRequest(_url);
+            var getAacCallInput = _aacContractReader.CreateGetAacCallInput(uids[(int)i]);
+            yield return aacContractRequest.SendRequest(getAacCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
+            account.SetOwnedAac(i, _aacContractReader.DecodeGetAacDto(aacContractRequest.Result));
+        }
+        print("aacs");
+
+        account.OnFinishedLoadingAACs();
+    }
 
     IEnumerator GetAacs()
     {
@@ -126,23 +148,33 @@ public class ContractService : MonoBehaviour {
         yield return playContractRequest.SendRequest(playGetLockedTokensCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
         account.Locked = _playContractReader.DecodeGetTotalLockedTokens(playContractRequest.Result);
 
-        // Count Colored Token types and initialize colored balances in account
+        // count colored token types and initialize colored balances in account
         playContractRequest = new EthCallUnityRequest(_url);
         var playColoredTokensCountCallInput = _playContractReader.CreateColoredTokenCountCallInput();
         yield return playContractRequest.SendRequest(playColoredTokensCountCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
         uint coloredTypes = _playContractReader.DecodeColoredTokenCount(playContractRequest.Result);
         account.InitializeColoredBalances(coloredTypes);
 
-        // get Colored Token balances
+        // get colored token balances
         for (uint i = 0; i < coloredTypes; ++i)
         {
             playContractRequest = new EthCallUnityRequest(_url);
             var playGetColoredTokensCallInput = _playContractReader.CreateGetColoredTokenBalanceCallInput(address, i);
             yield return playContractRequest.SendRequest(playGetColoredTokensCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
-            account.SetColor(i, _playContractReader.DecodeGetTotalLockedTokens(playContractRequest.Result));
+            account.SetColor(i, _playContractReader.DecodeGetColoredTokenBalance(playContractRequest.Result));
         }
 
-        account.stringifyBalances();
+        // get colored token names
+        for (uint i = 0; i < coloredTypes; ++i)
+        {
+            playContractRequest = new EthCallUnityRequest(_url);
+            var getColoredTokenNamesCallInput = _playContractReader.CreateGetColoredTokenCallInput(i);
+            yield return playContractRequest.SendRequest(getColoredTokenNamesCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
+            var coloredToken = _playContractReader.DecodeGetColoredToken(playContractRequest.Result);
+            account.SetColorName(i, coloredToken.Name);
+        }
+
+        account.OnFinishedLoadingBalances();
     }
 
     public IEnumerator GetBalance(BigInteger uid)
@@ -163,6 +195,6 @@ public class ContractService : MonoBehaviour {
             account.SetColor(i, _playContractReader.DecodeGetTotalLockedTokens(playContractRequest.Result));
         }
 
-        account.stringifyBalances();
+        account.OnFinishedLoadingBalances();
     }
 }

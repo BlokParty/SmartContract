@@ -112,10 +112,10 @@ public class AacContractReader
         return function.DecodeSimpleTypeOutput<uint>(result);
     }
 
-    public uint[] DecodeTokensOfOwner(string result)
+    public List<BigInteger> DecodeTokensOfOwner(string result)
     {
         var function = GetFunctionTokensOfOwner();
-        return function.DecodeSimpleTypeOutput<uint[]>(result);
+        return function.DecodeSimpleTypeOutput<List<BigInteger>>(result);
     }
 
     public uint DecodeTotalSupply(string result)

@@ -30,7 +30,7 @@ contract AacOwnership {
     /// @dev Throws if AAC #`_tokenId` isn't tracked by the AAC Array.
     //-------------------------------------------------------------------------
     modifier mustExist(uint _tokenId) {
-        require (uidToAacIndex[_tokenId] != 0);
+        require (uidToAacIndex[_tokenId] != 0, "Invalid AAC UID");
         _;
     }
 
@@ -38,7 +38,7 @@ contract AacOwnership {
     /// @dev Throws if AAC #`_tokenId` isn't owned by sender.
     //-------------------------------------------------------------------------
     modifier mustOwn(uint _tokenId) {
-        require (ownerOf(_tokenId) == msg.sender);
+        require (ownerOf(_tokenId) == msg.sender, "Must be owner of AAC");
         _;
     }
 
@@ -62,7 +62,10 @@ contract AacOwnership {
         returns (address) 
     {
         // owner must not be the zero address
-        require (aacArray[uidToAacIndex[_tokenId]].owner != 0);
+        require (
+            aacArray[uidToAacIndex[_tokenId]].owner != 0, 
+            "AAC has no owner"
+        );
         return aacArray[uidToAacIndex[_tokenId]].owner;
     }
 
@@ -74,7 +77,7 @@ contract AacOwnership {
     //-------------------------------------------------------------------------
     function balanceOf(address _owner) public view returns (uint256) {
         // owner must not be the zero address
-        require (_owner != 0);
+        require (_owner != 0, "Cannot query the zero address");
         uint owned;
         for (uint i = 1; i < aacArray.length; ++i) {
             if(aacArray[i].owner == _owner) {
@@ -94,7 +97,7 @@ contract AacOwnership {
     //-------------------------------------------------------------------------
     function tokensOfOwner(address _owner) external view returns (uint[]) {
         uint aacsOwned = balanceOf(_owner);
-        require(aacsOwned > 0);
+        require(aacsOwned > 0, "No owned AACs");
         uint counter = 0;
         uint[] memory result = new uint[](aacsOwned);
         for (uint i = 0; i < aacArray.length; i++) {
@@ -123,7 +126,7 @@ contract AacOwnership {
     //-------------------------------------------------------------------------
     function tokenByIndex(uint256 _index) external view returns (uint256) {
         // index must correspond to an existing AAC
-        require (_index > 0 && _index < aacArray.length);
+        require (_index > 0 && _index < aacArray.length, "Invalid index");
         return (aacArray[_index].uid);
     }
 
@@ -141,9 +144,9 @@ contract AacOwnership {
         uint256 _index
     ) external view returns (uint256) {
         uint aacsOwned = balanceOf(_owner);
-        require(_owner != 0);
-        require(aacsOwned > 0);
-        require(_index < aacsOwned);
+        require(_owner != 0, "Cannot query the zero address");
+        require(aacsOwned > 0, "No owned AACs");
+        require(_index < aacsOwned, "Invalid index");
         uint counter = 0;
         for (uint i = 0; i < aacArray.length; i++) {
             if (aacArray[i].owner == _owner) {
@@ -241,8 +244,12 @@ contract AacTransfers is AacOwnership {
     //-------------------------------------------------------------------------
     function approve(address _approved, uint256 _tokenId) external payable {
         address owner = ownerOf(_tokenId);
-        // msg.sender must be the current NFT owner, or an authorized operator of the current owner.
-        require (msg.sender == owner || isApprovedForAll(owner, msg.sender));
+        // msg.sender must be the current NFT owner, or an authorized operator
+        //  of the current owner.
+        require (
+            msg.sender == owner || isApprovedForAll(owner, msg.sender),
+            "Not authorized to approve for this AAC"
+        );
         idToApprovedAddress[_tokenId] = _approved;
         emit Approval(owner, _approved, _tokenId);
     }
@@ -270,7 +277,7 @@ contract AacTransfers is AacOwnership {
     ///  approval
     //-------------------------------------------------------------------------
     function setApprovalForAll(address _operator, bool _approved) external {
-        require(_operator != msg.sender);
+        require(_operator != msg.sender, "Operator cannot be sender");
         operatorApprovals[msg.sender][_operator] = _approved;
         emit ApprovalForAll(msg.sender, _operator, _approved);
     }
@@ -314,12 +321,13 @@ contract AacTransfers is AacOwnership {
         require (
             msg.sender == owner || 
             isApprovedForAll(owner, msg.sender) || 
-            msg.sender == idToApprovedAddress[_tokenId]
+            msg.sender == idToApprovedAddress[_tokenId],
+            "Not authorized to transfer this AAC"
         );
         // _from address must be current owner of the AAC
-        require (_from == owner && _from != 0);
+        require (_from == owner && _from != 0, "AAC not owned by '_from'");
         // _to address must not be zero address
-        require (_to != 0);
+        require (_to != 0, "Cannot transfer AAC to zero address");
         
         // clear approval
         idToApprovedAddress[_tokenId] = 0;
@@ -334,7 +342,10 @@ contract AacTransfers is AacOwnership {
         assembly { size := extcodesize(_to) }
         if (size > 0) {
             bytes4 retval = TokenReceiverInterface(_to).onERC721Received(msg.sender, _from, _tokenId, "");
-            require(retval == 0x150b7a02);
+            require(
+                retval == 0x150b7a02, 
+                "Destination contract not equipped to receive AACs"
+            );
         }
     }
     
@@ -359,12 +370,18 @@ contract AacTransfers is AacOwnership {
         bytes _data
     ) external mustExist(_tokenId) payable {
         address owner = ownerOf(_tokenId);
-        // sender must be the current owner, an authorized operator, or the approved address for the AAC
-        require (msg.sender == owner || isApprovedForAll(owner, msg.sender) || msg.sender == idToApprovedAddress[_tokenId]);
+        // sender must be the current owner, an authorized operator, or the
+        //  approved address for the AAC
+        require (
+            msg.sender == owner || 
+            isApprovedForAll(owner, msg.sender) || 
+            msg.sender == idToApprovedAddress[_tokenId],
+            "Not authorized to transfer this AAC"
+        );
         // _from address must be current owner of the AAC
-        require (_from == owner && _from != 0);
+        require (_from == owner && _from != 0, "AAC not owned by '_from'");
         // _to address must not be zero address
-        require (_to != 0);
+        require (_to != 0, "Cannot transfer AAC to zero address");
         
         // clear approval
         idToApprovedAddress[_tokenId] = 0;
@@ -378,7 +395,10 @@ contract AacTransfers is AacOwnership {
         assembly { size := extcodesize(_to) }
         if (size > 0) {
             bytes4 retval = TokenReceiverInterface(_to).onERC721Received(msg.sender, _from, _tokenId, _data);
-            require(retval == 0x150b7a02);
+            require(
+                retval == 0x150b7a02,
+                "Destination contract not equipped to receive AACs"
+            );
         }
     }
 
@@ -400,12 +420,18 @@ contract AacTransfers is AacOwnership {
         uint256 _tokenId
     ) external mustExist(_tokenId) payable {
         address owner = ownerOf(_tokenId);
-        // sender must be the current owner, an authorized operator, or the approved address for the AAC
-        require (msg.sender == owner || isApprovedForAll(owner, msg.sender) || msg.sender == idToApprovedAddress[_tokenId]);
+        // sender must be the current owner, an authorized operator, or the
+        //  approved address for the AAC
+        require (
+            msg.sender == owner || 
+            isApprovedForAll(owner, msg.sender) || 
+            msg.sender == idToApprovedAddress[_tokenId],
+            "Not authorized to transfer this AAC"
+        );
         // _from address must be current owner of the AAC
-        require (_from == owner && _from != 0);
+        require (_from == owner && _from != 0, "AAC not owned by '_from'");
         // _to address must not be zero address
-        require (_to != 0);
+        require (_to != 0, "Cannot transfer AAC to zero address");
         
         // clear approval
         idToApprovedAddress[_tokenId] = 0;
@@ -444,7 +470,10 @@ contract Ownable {
     /// @dev Throws if called by any account other than `owner`.
     //-------------------------------------------------------------------------
     modifier onlyOwner() {
-        require(msg.sender == owner);
+        require(
+            msg.sender == owner, 
+            "Function can only be called by contract owner"
+        );
         _;
     }
 
@@ -455,7 +484,10 @@ contract Ownable {
     //-------------------------------------------------------------------------
     function transferOwnership(address _newOwner) public onlyOwner {
         // for safety, new owner parameter must not be 0
-        require (_newOwner != address(0));
+        require (
+            _newOwner != address(0),
+            "New owner address cannot be zero"
+        );
         // define local variable for old owner
         address oldOwner = owner;
         // set owner to new owner
@@ -636,13 +668,13 @@ contract AacCreation is Ownable, AacTransfers, AacInterfaceSupport {
     ) external mustExist(_aacId) {
         AAC storage aac = aacArray[uidToAacIndex[_aacId]];
         // sender must own AAC
-        require (msg.sender == aac.owner);
+        require (msg.sender == aac.owner, "AAC not owned by sender");
         // _aacId must be an empty AAC
-        require (_aacId > uidBuffer);
+        require (_aacId > uidBuffer, "AAC already linked");
         // _newUid field cannot be empty
-        require (_newUid > 0);
+        require (_newUid > 0, "Invalid new UID");
         // an AAC with the new UID must not currently exist
-        require (uidToAacIndex[uint(_newUid)] == 0);
+        require (uidToAacIndex[uint(_newUid)] == 0, "New UID already exists");
 
         // set new UID's mapping to index to old UID's mapping
         uidToAacIndex[uint(_newUid)] = uidToAacIndex[_aacId];
@@ -677,18 +709,19 @@ contract AacCreation is Ownable, AacTransfers, AacInterfaceSupport {
     ) external mustExist(_aacId) {
         AAC storage aac = aacArray[uidToAacIndex[_aacId]];
         // sender must own AAC
-        require (_owner == aac.owner);
+        require (_owner == aac.owner, "AAC not owned by sender");
         // _aacId must be an empty AAC
-        require (_aacId > uidBuffer);
+        require (_aacId > uidBuffer, "AAC already linked");
         // _newUid field cannot be empty
-        require (_newUid > 0);
+        require (_newUid > 0, "Invalid new UID");
         // an AAC with the new UID must not currently exist
-        require (uidToAacIndex[uint(_newUid)] == 0);
+        require (uidToAacIndex[uint(_newUid)] == 0, "New UID already exists");
         // msg.sender must be the approved address of AAC #uid, or an authorized
         //  operator for from
         require (
             msg.sender == idToApprovedAddress[_aacId] ||
-            operatorApprovals[_owner][msg.sender] == true
+            operatorApprovals[_owner][msg.sender] == true,
+            "Not authorized to link this AAC"
         );
         // set new UID's mapping to index to old UID's mapping
         uidToAacIndex[uint(_newUid)] = uidToAacIndex[_aacId];
