@@ -33,49 +33,22 @@ public class AccountManager : MonoBehaviour {
     [SerializeField]
     Text address;
     [SerializeField]
-    Text eth;
-    [SerializeField]
-    Text pnt;
-    [SerializeField]
-    Text locked;
-    [SerializeField]
-    Text[] colored;
-    [SerializeField]
-    Text aacs;
+    Text balances;
+    
 
-    AacContractReader.GetAacDto[] ownedAacs;
-    public AacContractReader.GetAacDto GetOwnedAac(uint index) { return ownedAacs[index]; }
-    public void SetOwnedAac(uint index, AacContractReader.GetAacDto value) { ownedAacs[index] = value; }
-
-    [SerializeField]
-    Text aacNumber;
-    [SerializeField]
-    Text aacUid;
-    [SerializeField]
-    Text aacTimestamp;
-    [SerializeField]
-    Text aacExp;
 
     public void OnFinishedLoadingBalances()
     {
         StringifyBalances();
-        address.text = "Signed in as:  " + account;
-        eth.text = "Ether:  " + ethBalanceString;
-        pnt.text = "PLAYnetwork Token (PNT):  " + playBalanceString;
-        locked.text = "Locked PNT:  " + lockedBalanceString;
+        address.text = "Player ID:  " + account;
+        
+        balances.text = "Token Balances\nEther (ETH):  " + ethBalanceString;
+        balances.text += "\nPLAYnetwork Token (PNT):  " + playBalanceString;
+        balances.text += "\nLocked PNT:  " + lockedBalanceString;
         for (uint i = 0; i < coloredBalances.Length; ++i)
         {
-            colored[i].text = "Colored PNT(" + i + ") - " + coloredTokenNames[i] + ":  " + coloredBalanceStrings[i];
+            balances.text += "\nColored PNT(" + i + ") - " + coloredTokenNames[i] + ":  " + coloredBalanceStrings[i];
         }
-    }
-
-    public void OnFinishedLoadingAACs()
-    {
-        aacs.text = "Owned AACs:  " + numberOfOwnedAacs;
-        aacNumber.text = "1 / " + numberOfOwnedAacs;
-        aacUid.text = "UID:  " + (ownedAacs[0].UID.ToString("X14"));
-        aacTimestamp.text = "Created:  " + ownedAacs[0].Timestamp;
-        aacExp.text = "Exp:  " + ownedAacs[0].Experience;
     }
 
     // Initializes the coloredBalances array.
@@ -85,11 +58,6 @@ public class AccountManager : MonoBehaviour {
         coloredTokenNames = new string[length];
     }
 
-    public void InitializeOwnedAacs(uint length)
-    {
-        numberOfOwnedAacs = length;
-        ownedAacs = new AacContractReader.GetAacDto[length];
-    }
 
     // converts the BigInteger balances to strings to display
     private void StringifyBalances()

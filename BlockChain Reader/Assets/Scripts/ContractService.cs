@@ -21,6 +21,8 @@ public class ContractService : MonoBehaviour {
     [SerializeField]
     AccountManager account;
     [SerializeField]
+    Inventory inventory;
+    [SerializeField]
     bool LoadAacsOnStartup;
 
     private AacContractReader _aacContractReader;
@@ -48,25 +50,22 @@ public class ContractService : MonoBehaviour {
         var aacContractRequest = new EthCallUnityRequest(_url);
         var balanceOfCallInput = _aacContractReader.CreateBalanceOfCallInput(address);
         yield return aacContractRequest.SendRequest(balanceOfCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
-        account.InitializeOwnedAacs(_aacContractReader.DecodeBalanceOf(aacContractRequest.Result));
-        print("number");
+        inventory.InitializeOwnedAacs(_aacContractReader.DecodeBalanceOf(aacContractRequest.Result));
 
         aacContractRequest = new EthCallUnityRequest(_url);
         var tokensOfOwnerCallInput = _aacContractReader.CreateTokensOfOwnerCallInput(address);
         yield return aacContractRequest.SendRequest(tokensOfOwnerCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest()); 
         List<BigInteger> uids = _aacContractReader.DecodeTokensOfOwner(aacContractRequest.Result);
-        print("uids");
 
         for(uint i = 0; i < uids.Count; ++i)
         {
             aacContractRequest = new EthCallUnityRequest(_url);
             var getAacCallInput = _aacContractReader.CreateGetAacCallInput(uids[(int)i]);
             yield return aacContractRequest.SendRequest(getAacCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
-            account.SetOwnedAac(i, _aacContractReader.DecodeGetAacDto(aacContractRequest.Result));
+            inventory.SetOwnedAac(i, _aacContractReader.DecodeGetAacDto(aacContractRequest.Result));
         }
-        print("aacs");
 
-        account.OnFinishedLoadingAACs();
+        inventory.OnFinishedLoading();
     }
 
     IEnumerator GetAacs()

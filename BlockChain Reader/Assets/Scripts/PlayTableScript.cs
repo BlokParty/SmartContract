@@ -14,7 +14,7 @@ public class PlayTableScript : MonoBehaviour {
 
     private void Awake()
     {
-        PTTableTop.Initialize(Application.identifier, (new GameObject()).AddComponent<PTPlayer>(), 1, 1);
+        PTTableTop.Initialize((new GameObject()).AddComponent<PTPlayer>());
         PTTableTop.OnSmartPiece += GetBalancesFromRfid;
     }
 
