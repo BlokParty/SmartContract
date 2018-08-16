@@ -14,10 +14,8 @@ contract AacOwnership {
         uint timestamp;
         // exp
         uint exp;
-        // public data
-        bytes publicData;
-        // encrypted data
-        //bytes privateData;        // use this if/when needed
+        // toy data
+        bytes toyData;
     }
 
     // Array containing all AACs. The first element in aacArray returns invalid
@@ -235,6 +233,20 @@ contract AacTransfers is AacOwnership {
     mapping (address => mapping (address => bool)) operatorApprovals;
 
     //-------------------------------------------------------------------------
+    //-------------------------------------------------------------------------
+    modifier canOperate(uint _uid) {
+        // sender must be owner of AAC #uid, or sender must be the approved
+        // address of AAC #uid, or an authorized operator for AAC owner
+        require (
+            msg.sender == aacArray[uidToAacIndex[_uid]].owner ||
+            msg.sender == idToApprovedAddress[_uid] ||
+            operatorApprovals[aacArray[uidToAacIndex[_uid]].owner][msg.sender],
+            "Not authorized to operate for this AAC"
+        );
+        _;
+    }
+
+    //-------------------------------------------------------------------------
     /// @notice Change or reaffirm the approved address for AAC #`_tokenId`.
     /// @dev The zero address indicates there is no approved address.
     ///  Throws unless `msg.sender` is the current NFT owner, or an authorized
@@ -314,16 +326,8 @@ contract AacTransfers is AacOwnership {
         address _from,
         address _to, 
         uint256 _tokenId
-    ) external mustExist(_tokenId) payable {
+    ) external mustExist(_tokenId) payable canOperate(_tokenId) {
         address owner = ownerOf(_tokenId);
-        // sender must be the current owner, an authorized operator, or the
-        //  approved address for the AAC
-        require (
-            msg.sender == owner || 
-            isApprovedForAll(owner, msg.sender) || 
-            msg.sender == idToApprovedAddress[_tokenId],
-            "Not authorized to transfer this AAC"
-        );
         // _from address must be current owner of the AAC
         require (_from == owner && _from != 0, "AAC not owned by '_from'");
         // _to address must not be zero address
@@ -368,16 +372,8 @@ contract AacTransfers is AacOwnership {
         address _to, 
         uint256 _tokenId, 
         bytes _data
-    ) external mustExist(_tokenId) payable {
+    ) external mustExist(_tokenId) payable canOperate(_tokenId) {
         address owner = ownerOf(_tokenId);
-        // sender must be the current owner, an authorized operator, or the
-        //  approved address for the AAC
-        require (
-            msg.sender == owner || 
-            isApprovedForAll(owner, msg.sender) || 
-            msg.sender == idToApprovedAddress[_tokenId],
-            "Not authorized to transfer this AAC"
-        );
         // _from address must be current owner of the AAC
         require (_from == owner && _from != 0, "AAC not owned by '_from'");
         // _to address must not be zero address
@@ -439,6 +435,245 @@ contract AacTransfers is AacOwnership {
         aacArray[uidToAacIndex[_tokenId]].owner = _to;
 
         emit Transfer(_from, _to, _tokenId);
+    }
+}
+
+
+//-----------------------------------------------------------------------------
+///@title ERC-20 function declarations
+//-----------------------------------------------------------------------------
+interface ERC20 {
+    function transfer (
+        address to, 
+        uint tokens
+    ) external returns (bool success);
+
+    function transferFrom (
+        address from, 
+        address to, 
+        uint tokens
+    ) external returns (bool success);
+}
+
+
+//-----------------------------------------------------------------------------
+/// @title External Token Handler
+/// @notice Defines depositing and withdrawal of Ether and ERC-20-compliant
+///  tokens into AACs.
+//-----------------------------------------------------------------------------
+contract ExternalTokenHandler is AacTransfers {
+    // handles the balances of AACs for every ERC20 token address
+    mapping (address => mapping(uint => uint)) externalTokenBalances;
+    
+    // UID value is 7 bytes. Max value is 2**56 - 1
+    uint constant UID_MAX = 0xFFFFFFFFFFFFFF;
+
+    //-------------------------------------------------------------------------
+    /// @notice Deposit Ether from sender to approved AAC
+    /// @dev Throws if Ether to deposit is zero. Throws if sender is not
+    ///  approved to operate AAC #`toUid`. Throws if AAC #`toUid` is unlinked.
+    ///  Throws if sender has insufficient balance for deposit.
+    /// @param _toUid the AAC to deposit the Ether into
+    //-------------------------------------------------------------------------
+    function depositEther(uint _toUid) external payable canOperate(_toUid) {
+        // Ether to deposit must be greater than zero
+        require (msg.value > 0, "Cannot deposit zero Ether");
+        // AAC must be linked
+        require (_toUid < UID_MAX, "Invalid AAC. AAC not yet linked");
+        // add amount to AAC's balance
+        externalTokenBalances[address(this)][_toUid] += msg.value;
+    }
+
+    //-------------------------------------------------------------------------
+    /// @notice Withdraw Ether from approved AAC to AAC's owner
+    /// @dev Throws if Ether to withdraw is zero. Throws if sender is not an
+    ///  approved operator for AAC #`_fromUid`. Throws if AAC #`_fromUid` has
+    ///  insufficient balance to withdraw.
+    /// @param _fromUid the AAC to withdraw the Ether from
+    /// @param _amount the amount of Ether to withdraw (in Wei)
+    //-------------------------------------------------------------------------
+    function withdrawEther(
+        uint _fromUid, 
+        uint _amount
+    ) external canOperate(_fromUid) {
+        // Ether to withdraw must be greater than zero
+        require (_amount > 0, "Cannot withdraw zero Ether");
+        // AAC must have sufficient Ether balance
+        require (
+            externalTokenBalances[address(this)][_fromUid] >= _amount,
+            "Insufficient Ether to withdraw"
+        );
+        // subtract amount from AAC's balance
+        externalTokenBalances[address(this)][_fromUid] -= _amount;
+        // call transfer function
+        ownerOf(_fromUid).transfer(_amount);
+    }
+
+    //-------------------------------------------------------------------------
+    /// @notice Withdraw Ether from approved AAC and send to '_to'
+    /// @dev Throws if Ether to transfer is zero. Throws if sender is not an
+    ///  approved operator for AAC #`to_fromUidUid`. Throws if AAC #`_fromUid`
+    ///  has insufficient balance to withdraw.
+    /// @param _fromUid the AAC to withdraw and send the Ether from
+    /// @param _to the address to receive the transferred Ether
+    /// @param _amount the amount of Ether to withdraw (in Wei)
+    //-------------------------------------------------------------------------
+    function transferEther(
+        uint _fromUid,
+        address _to,
+        uint _amount
+    ) external canOperate(_fromUid) {
+        // Ether to transfer must be greater than zero
+        require (_amount > 0, "Cannot transfer zero Ether");
+        // AAC must have sufficient Ether balance
+        require (
+            externalTokenBalances[address(this)][_fromUid] >= _amount,
+            "Insufficient Ether to transfer"
+        );
+        // subtract amount from AAC's balance
+        externalTokenBalances[address(this)][_fromUid] -= _amount;
+        // call transfer function
+        _to.transfer(_amount);
+    }
+
+    //-------------------------------------------------------------------------
+    /// @notice Deposit ERC-20 tokens from sender to approved AAC
+    /// @dev This contract address must be an authorized spender for sender.
+    ///  Throws if tokens to deposit is zero. Throws if sender is not an
+    ///  approved operator for AAC #`toUid`. Throws if AAC #`toUid` is
+    ///  unlinked. Throws if this contract address has insufficient allowance
+    ///  for transfer. Throws if sender has insufficient balance for deposit.
+    ///  Throws if tokenAddress has no transferFrom function.
+    /// @param _tokenAddress the ERC-20 contract address
+    /// @param _toUid the AAC to deposit the ERC-20 tokens into
+    /// @param _tokens the number of tokens to deposit
+    //-------------------------------------------------------------------------
+    function depositERC20 (
+        address _tokenAddress, 
+        uint _toUid, 
+        uint _tokens
+    ) external canOperate(_toUid) {
+        // tokens to deposit must be greater than zero
+        require (_tokens > 0, "Cannot deposit zero tokens");
+        // AAC must be linked
+        require (_toUid < UID_MAX, "Invalid AAC. AAC not yet linked");
+        // initialize token contract
+        ERC20 tokenContract = ERC20(_tokenAddress);
+        // add amount to AAC's balance
+        externalTokenBalances[_tokenAddress][_toUid] += _tokens;
+
+        // call transferFrom function from token contract
+        tokenContract.transferFrom(msg.sender, address(this), _tokens);
+    }
+
+    //-------------------------------------------------------------------------
+    /// @notice Deposit ERC-20 tokens from '_to' to approved AAC
+    /// @dev This contract address must be an authorized spender for '_from'.
+    ///  Throws if tokens to deposit is zero. Throws if sender is not an
+    ///  approved operator for AAC #`toUid`. Throws if AAC #`toUid` is
+    ///  unlinked. Throws if this contract address has insufficient allowance
+    ///  for transfer. Throws if sender has insufficient balance for deposit.
+    ///  Throws if tokenAddress has no transferFrom function.
+    /// @param _tokenAddress the ERC-20 contract address
+    /// @param _from the address sending ERC-21 tokens to deposit
+    /// @param _toUid the AAC to deposit the ERC-20 tokens into
+    /// @param _tokens the number of tokens to deposit
+    //-------------------------------------------------------------------------
+    function depositERC20From (
+        address _tokenAddress,
+        address _from, 
+        uint _toUid, 
+        uint _tokens
+    ) external canOperate(_toUid) {
+        // tokens to deposit must be greater than zero
+        require (_tokens > 0, "Cannot deposit zero tokens");
+        // AAC must be linked
+        require (_toUid < UID_MAX, "Invalid AAC. AAC not yet linked");
+        // initialize token contract
+        ERC20 tokenContract = ERC20(_tokenAddress);
+        // add amount to AAC's balance
+        externalTokenBalances[_tokenAddress][_toUid] += _tokens;
+
+        // call transferFrom function from token contract
+        tokenContract.transferFrom(_from, address(this), _tokens);
+    }
+
+    //-------------------------------------------------------------------------
+    /// @notice Withdraw ERC-20 tokens from approved AAC to AAC's owner
+    /// @dev Throws if tokens to withdraw is zero. Throws if sender is not an
+    ///  approved operator for AAC #`_fromUid`. Throws if AAC #`_fromUid` has
+    ///  insufficient balance to withdraw. Throws if tokenAddress has no
+    ///  transfer function.
+    /// @param tokenAddress the ERC-20 contract address
+    /// @param fromUid the AAC to withdraw the ERC-20 tokens from
+    /// @param tokens the number of tokens to withdraw
+    //-------------------------------------------------------------------------
+    function withdrawERC20 (
+        address _tokenAddress, 
+        uint _fromUid, 
+        uint _tokens
+    ) external canOperate(_fromUid) {
+        // tokens to withdraw must be greater than zero.
+        require (_tokens > 0, "Cannot withdraw zero tokens");
+        // AAC must have sufficient token balance
+        require (
+            externalTokenBalances[_tokenAddress][_fromUid] >= _tokens,
+            "insufficient tokens to withdraw"
+        );
+        // initialize token contract
+        ERC20 tokenContract = ERC20(_tokenAddress);
+        // subtract amount from AAC's balance
+        externalTokenBalances[_tokenAddress][_fromUid] -= _tokens;
+        
+        // call transfer function from token contract
+        tokenContract.transfer(ownerOf(_fromUid), _tokens);
+    }
+
+    //-------------------------------------------------------------------------
+    /// @notice Transfer ERC-20 tokens from your AAC to `_to`
+    /// @dev Throws if tokens to transfer is zero. Throws if sender is not an
+    ///  approved operator for AAC #`_fromUid`. Throws if AAC #`_fromUid` has
+    ///  insufficient balance to transfer. Throws if tokenAddress has no
+    ///  transfer function.
+    /// @param tokenAddress the ERC-20 contract address
+    /// @param fromUid the AAC to withdraw the ERC-20 tokens from
+    /// @param to the wallet address to send the ERC-20 tokens
+    /// @param tokens the number of tokens to withdraw
+    //-------------------------------------------------------------------------
+    function transferERC20 (
+        address _tokenAddress, 
+        uint _fromUid, 
+        address _to, 
+        uint _tokens
+    ) external canOperate(_fromUid) {
+        // tokens to transfer must be greater than zero.
+        require (_tokens > 0, "Cannot withdraw zero tokens");
+        // AAC must have sufficient token balance
+        require (
+            externalTokenBalances[_tokenAddress][_fromUid] >= _tokens,
+            "insufficient tokens to withdraw"
+        );
+        // initialize token contract
+        ERC20 tokenContract = ERC20(_tokenAddress);
+        // subtract amount from AAC's balance
+        externalTokenBalances[_tokenAddress][_fromUid] -= _tokens;
+        
+        // call transfer function from token contract
+        tokenContract.transfer(_to, _tokens);
+    }
+
+    //-------------------------------------------------------------------------
+    /// @notice Get external token balance for tokens deposited into AAC
+    ///  #`_uid`.
+    /// @dev To query Ether, use THIS CONTRACT'S address as '_tokenAddress'.
+    /// @param _uid Owner of the tokens to query
+    /// @param _tokenAddress Token creator contract address 
+    //-------------------------------------------------------------------------
+    function getExternalTokenBalance(
+        uint _uid, 
+        address _tokenAddress
+    ) external view returns (uint) {
+        return externalTokenBalances[_tokenAddress][_uid];
     }
 }
 
@@ -517,10 +752,8 @@ contract AacInterfaceSupport {
         interfaceIdToIsSupported[0x80ac58cd] = true;
         // supports ERC-721 Enumeration
         interfaceIdToIsSupported[0x780e9d63] = true;
-        /* OPTIONAL. WILL REQUIRE A JSON FILE STORED AT A URL.
         // supports ERC-721 Metadata
         interfaceIdToIsSupported[0x5b5e139f] = true;
-        */
     }
 
     //-------------------------------------------------------------------------
@@ -581,7 +814,7 @@ interface PlayInterface {
 /// @notice Defines new AAC creation (minting) and AAC linking to RFID-enabled
 ///  physical objects.
 //-----------------------------------------------------------------------------
-contract AacCreation is Ownable, AacTransfers, AacInterfaceSupport {
+contract AacCreation is Ownable, ExternalTokenHandler, AacInterfaceSupport {
     //-------------------------------------------------------------------------
     /// @dev Link emits when an empty AAC gets assigned to a valid RFID UID.
     //-------------------------------------------------------------------------
@@ -591,7 +824,7 @@ contract AacCreation is Ownable, AacTransfers, AacInterfaceSupport {
     uint public priceToMint = 1000 * 10**18;
     // Buffer added to the front of every AAC at time of creation. AACs with a
     //  uid greater than the buffer are guaranteed to be unlinked.
-    uint constant uidBuffer = 100000000000000000; // 17 zeroes
+    uint constant uidBuffer = 0x0100000000000000; // 14 zeroes
     // PLAY Token Contract object to interface with.
     PlayInterface play = PlayInterface(0x1A3E0766ff1326D295B2D2213618BFB9d07FCC30);
 
@@ -664,15 +897,15 @@ contract AacCreation is Ownable, AacTransfers, AacInterfaceSupport {
     function link(
         bytes7 _newUid, 
         uint _aacId, 
-        bytes _publicData
+        bytes _data
     ) external mustExist(_aacId) {
         AAC storage aac = aacArray[uidToAacIndex[_aacId]];
         // sender must own AAC
         require (msg.sender == aac.owner, "AAC not owned by sender");
         // _aacId must be an empty AAC
         require (_aacId > uidBuffer, "AAC already linked");
-        // _newUid field cannot be empty
-        require (_newUid > 0, "Invalid new UID");
+        // _newUid field cannot be empty or greater than 7 bytes
+        require (_newUid > 0 && uint(_newUid) < UID_MAX, "Invalid new UID");
         // an AAC with the new UID must not currently exist
         require (uidToAacIndex[uint(_newUid)] == 0, "New UID already exists");
 
@@ -682,8 +915,8 @@ contract AacCreation is Ownable, AacTransfers, AacInterfaceSupport {
         uidToAacIndex[_aacId] = 0;
         // set AAC's UID to new UID
         aac.uid = uint(_newUid);
-        // set any public data
-        aac.publicData = _publicData;
+        // set any data
+        aac.toyData = _data;
 
         emit Link(_aacId, uint(_newUid));
     }
@@ -705,15 +938,15 @@ contract AacCreation is Ownable, AacTransfers, AacInterfaceSupport {
         address _owner,
         bytes7 _newUid, 
         uint _aacId, 
-        bytes _publicData
+        bytes _data
     ) external mustExist(_aacId) {
         AAC storage aac = aacArray[uidToAacIndex[_aacId]];
         // sender must own AAC
         require (_owner == aac.owner, "AAC not owned by sender");
         // _aacId must be an empty AAC
         require (_aacId > uidBuffer, "AAC already linked");
-        // _newUid field cannot be empty
-        require (_newUid > 0, "Invalid new UID");
+        // _newUid field cannot be empty or greater than 7 bytes
+        require (_newUid > 0 && uint(_newUid) < UID_MAX, "Invalid new UID");
         // an AAC with the new UID must not currently exist
         require (uidToAacIndex[uint(_newUid)] == 0, "New UID already exists");
         // msg.sender must be the approved address of AAC #uid, or an authorized
@@ -729,10 +962,29 @@ contract AacCreation is Ownable, AacTransfers, AacInterfaceSupport {
         uidToAacIndex[_aacId] = 0;
         // set AAC's UID to new UID
         aac.uid = uint(_newUid);
-        // set any public data
-        aac.publicData = _publicData;
+        // set any data
+        aac.toyData = _data;
 
         emit Link(_aacId, uint(_newUid));
+    }
+}
+
+//-----------------------------------------------------------------------------
+/// @title AAC Interface
+/// @notice Interface for highest-level AAC getters
+//-----------------------------------------------------------------------------
+contract AacInterface is AacCreation {
+    // URL Containing AAC metadata
+    string metadataUrl = "https://blok.party/aac/";
+
+    //-------------------------------------------------------------------------
+    /// @notice Change old metadata URL to `_newUrl`
+    /// @dev Throws if new URL is empty
+    /// @param _newUrl The new URL containing AAC metadata
+    //-------------------------------------------------------------------------
+    function updateMetadataUrl(string _newUrl) external onlyOwner {
+        require(bytes(_newUrl).length > 0, "New URL parameter was empty");
+        metadataUrl = _newUrl;
     }
 
     //-------------------------------------------------------------------------
@@ -749,6 +1001,96 @@ contract AacCreation is Ownable, AacTransfers, AacInterfaceSupport {
         returns (address, uint, uint, uint, bytes) 
     {
         AAC memory aac = aacArray[uidToAacIndex[_uid]];
-        return(aac.owner, aac.uid, aac.timestamp, aac.exp, aac.publicData);
+        return(aac.owner, aac.uid, aac.timestamp, aac.exp, aac.toyData);
+    }
+
+    //-------------------------------------------------------------------------
+    /// @notice A descriptive name for a collection of NFTs in this contract
+    //-------------------------------------------------------------------------
+    function name() external pure returns (string) {
+        return "Authentic Asset Certificates";
+    }
+
+    //-------------------------------------------------------------------------
+    /// @notice An abbreviated name for NFTs in this contract
+    //-------------------------------------------------------------------------
+    function symbol() external pure returns (string) { return "AAC"; }
+
+    //-------------------------------------------------------------------------
+    /// @notice A distinct URL for a given asset.
+    /// @dev Throws if `_tokenId` is not a valid NFT.
+    ///  If:
+    ///  * The URI is a URL
+    ///  * The URL is accessible
+    ///  * The URL points to a valid JSON file format (ECMA-404 2nd ed.)
+    ///  * The JSON base element is an object
+    ///  then these names of the base element SHALL have special meaning:
+    ///  * "name": A string identifying the item to which `_tokenId` grants
+    ///    ownership
+    ///  * "description": A string detailing the item to which `_tokenId` grants
+    ///    ownership
+    ///  * "image": A URI pointing to a file of image/* mime type representing
+    ///    the item to which `_tokenId` grants ownership
+    ///  Wallets and exchanges MAY display this to the end user.
+    ///  Consider making any images at a width between 320 and 1080 pixels and
+    ///  aspect ratio between 1.91:1 and 4:5 inclusive.
+    /// @param _tokenId The AAC whose metadata address is being queried
+    //-------------------------------------------------------------------------
+    function tokenURI(uint _tokenId) 
+        external 
+        view 
+        returns (string) 
+    {
+        // convert AAC UID to a 14 character long string of character bytes
+        bytes memory uidString = intToBytes(_tokenId);
+        // declare new string of bytes with combined length of url and uid 
+        bytes memory fullUrlBytes = new bytes(bytes(metadataUrl).length + uidString.length);
+        // copy URL string and uid string into new string
+        uint counter = 0;
+        for (uint i = 0; i < bytes(metadataUrl).length; i++) {
+            fullUrlBytes[counter++] = bytes(metadataUrl)[i];
+        }
+        for (i = 0; i < uidString.length; i++) {
+            fullUrlBytes[counter++] = uidString[i];
+        }
+        // return full URL
+        return string(fullUrlBytes);
+    }
+    
+    //-------------------------------------------------------------------------
+    /// @notice Convert int to 14 character bytes
+    //-------------------------------------------------------------------------
+    function intToBytes(uint _tokenId) 
+        private 
+        pure 
+        returns (bytes) 
+    {
+        // convert int to bytes32
+        bytes32 x = bytes32(_tokenId);
+        
+        // convert each byte into two, and assign each byte a hex digit
+        bytes memory uidBytes64 = new bytes(64);
+        for (uint i = 0; i < 32; i++) {
+            byte b = byte(x[i]);
+            byte hi = byte(uint8(b) / 16);
+            byte lo = byte(uint8(b) - 16 * uint8(hi));
+            uidBytes64[i*2] = char(hi);
+            uidBytes64[i*2+1] = char(lo);
+        }
+        
+        // reduce size to last 14 chars (7 bytes)
+        bytes memory uidBytes = new bytes(14);
+        for (i = 0; i < 14; ++i) {
+            uidBytes[i] = uidBytes64[i + 50];
+        }
+        return uidBytes;
+    }
+    
+    //-------------------------------------------------------------------------
+    /// @notice Convert byte to UTF-8-encoded hex character
+    //-------------------------------------------------------------------------
+    function char(byte b) private pure returns (byte c) {
+        if (b < 10) return byte(uint8(b) + 0x30);
+        else return byte(uint8(b) + 0x57);
     }
 }

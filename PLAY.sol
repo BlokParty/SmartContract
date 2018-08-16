@@ -870,7 +870,7 @@ contract AACInteraction is ColorToken {
     // AAC contract to interface with
     AACOwnership aac;
     // UID value is 7 bytes. Max value is 2**56
-    uint constant MAX_UID = 72057594037927936;
+    uint constant UID_MAX = 0xFFFFFFFFFFFFFF;
 
     //-------------------------------------------------------------------------
     /// @notice Set the address of the AAC interface to `aacAddress`.
@@ -907,7 +907,7 @@ contract AACInteraction is ColorToken {
             "Insufficient tokens to deposit"
         );
         // uid must be a valid UID
-        require (uid < MAX_UID, "Invalid UID");
+        require (uid < UID_MAX, "Invalid UID");
         // msg.sender must be owner of AAC #uid or colored token creator
         require (
             msg.sender == aac.ownerOf(uid) ||
@@ -952,7 +952,7 @@ contract AACInteraction is ColorToken {
             "Insufficient tokens to deposit"
         );
         // uid must be a valid UID
-        require (uid < MAX_UID, "Invalid UID");
+        require (uid < UID_MAX, "Invalid UID");
         // token owner must be owner of AAC #uid
         require (
             from == aac.ownerOf(uid), 
@@ -990,7 +990,7 @@ contract AACInteraction is ColorToken {
         // colorIndex must be valid color
         require (colorIndex < coloredTokens.length, "Invalid color index");
         // uid must be a valid UID
-        require (uid < MAX_UID, "Invalid UID");
+        require (uid < UID_MAX, "Invalid UID");
         // AAC #uid must have sufficient colored token balance
         require (
             tokens <= coloredTokens[colorIndex].uidBalances[uid],
@@ -1000,7 +1000,7 @@ contract AACInteraction is ColorToken {
         // sender must be owner of AAC #uid, or sender must be the approved
         // address of AAC #uid, or an authorized operator for AAC owner
         require (
-            msg.sender == owner || 
+            msg.sender == owner ||
             msg.sender == aac.getApproved(uid) ||
             aac.isApprovedForAll(owner, msg.sender),
             "Not authorized to withdraw from this AAC"

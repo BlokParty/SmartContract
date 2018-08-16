@@ -99,12 +99,12 @@ public class Inventory : MonoBehaviour {
             if (i > 17)
             {
                 GameObject newButton = Instantiate(inventoryButton, transform.position, transform.rotation) as GameObject;
-                newButton.name = "InventorySlot (" + i +")";
+                newButton.name = " (" + i +")";
                 newButton.transform.parent = transform;
                 newButton.GetComponent<Button>().onClick.AddListener(delegate { DisplayAac(i); });
             }
-            images[i] = transform.Find("InventorySlot (" + i + ")").transform.Find("Image").GetComponent<Image>();
-            transform.Find("InventorySlot (" + i + ")").GetComponent<Button>().enabled = true;
+            images[i] = transform.Find(" (" + i + ")").transform.Find("Image").GetComponent<Image>();
+            transform.Find(" (" + i + ")").GetComponent<Button>().enabled = true;
         }
     }
 
