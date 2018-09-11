@@ -13,187 +13,266 @@ using Nethereum.Util;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.UI;
+using BestHTTP;
 
 public class ContractService : MonoBehaviour {
 
     [SerializeField]
-    AacManager manager;
+    ToyTokenManager toyManager;
     [SerializeField]
     AccountManager account;
     [SerializeField]
     Inventory inventory;
     [SerializeField]
-    bool LoadAacsOnStartup;
+    FungibleTokenManager tokenManager;
+    [SerializeField]
+    bool LoadToysOnStartup;
+    int toysLoaded;
+    int totalSupply;
 
-    private AacContractReader _aacContractReader;
+    private ToyContractReader _toyContractReader;
     private PlayContractReader _playContractReader;
+    private MetadataHtmlReader _metadataReader;
+    private Erc20Reader[] _erc20Readers;
 
-    private string _url = @"https://ropsten.infura.io/697bb76db0504ef29768e3a8df898713";
+    private string _url = @"https://mainnet.infura.io/v3/697bb76db0504ef29768e3a8df898713";
+    private string _server = @"http://52.9.230.48:8090/toy_token/";
 
-
-	// Use this for initialization
-	void Start () {
-        _aacContractReader = new AacContractReader();
+    // Use this for initialization
+    void Start () {
+        _toyContractReader = new ToyContractReader();
         _playContractReader = new PlayContractReader();
+        _metadataReader = new MetadataHtmlReader();
+        _erc20Readers = new Erc20Reader[tokenManager.fungibleTokens.Length];
+        for(int i = 1; i < _erc20Readers.Length; ++i)
+        {
+            _erc20Readers[i] = new Erc20Reader(tokenManager.fungibleTokens[i].address);
+        }
+
         //Coroutines
-        if (LoadAacsOnStartup)
+        if (LoadToysOnStartup)
         {
-            StartCoroutine(GetAacs());
+            StartCoroutine(GetToys());
         }
-
+        StartCoroutine(InitializeColoredTokens());
         StartCoroutine(GetBalance(account.Account));
-        StartCoroutine(GetOwnedAacs(account.Account));
     }
-	
-	IEnumerator GetOwnedAacs(string address)
+
+    //-----------------------------------------------------------------------------------------------------------------
+    // GET OWNED TOYS
+    //-----------------------------------------------------------------------------------------------------------------
+    public IEnumerator GetOwnedToys(string address)
     {
-        var aacContractRequest = new EthCallUnityRequest(_url);
-        var balanceOfCallInput = _aacContractReader.CreateBalanceOfCallInput(address);
-        yield return aacContractRequest.SendRequest(balanceOfCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
-        inventory.InitializeOwnedAacs(_aacContractReader.DecodeBalanceOf(aacContractRequest.Result));
+        GameObject.Find("ScanButton").GetComponent<Image>().color = Color.green;
+        // get list of owned Toy Token UIDs
+        var toyContractRequest = new EthCallUnityRequest(_url);
+        var tokensOfOwnerCallInput = _toyContractReader.CreateTokensOfOwnerCallInput(address);
+        yield return toyContractRequest.SendRequest(tokensOfOwnerCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest()); 
+        List<long> uids = _toyContractReader.DecodeTokensOfOwner(toyContractRequest.Result);
+        inventory.ownedToyUids = uids;
+        inventory.InitializeOwnedToys(uids.Count);
 
-        aacContractRequest = new EthCallUnityRequest(_url);
-        var tokensOfOwnerCallInput = _aacContractReader.CreateTokensOfOwnerCallInput(address);
-        yield return aacContractRequest.SendRequest(tokensOfOwnerCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest()); 
-        List<BigInteger> uids = _aacContractReader.DecodeTokensOfOwner(aacContractRequest.Result);
-
-        for(uint i = 0; i < uids.Count; ++i)
-        {
-            aacContractRequest = new EthCallUnityRequest(_url);
-            var getAacCallInput = _aacContractReader.CreateGetAacCallInput(uids[(int)i]);
-            yield return aacContractRequest.SendRequest(getAacCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
-            inventory.SetOwnedAac(i, _aacContractReader.DecodeGetAacDto(aacContractRequest.Result));
-        }
-
+        // notify inventory to finish initialization
         inventory.OnFinishedLoading();
     }
 
-    IEnumerator GetAacs()
+    //-----------------------------------------------------------------------------------------------------------------
+    // GET TOYS
+    //-----------------------------------------------------------------------------------------------------------------
+    IEnumerator GetToys()
     {
         // create a unity call request
-        var aacContractRequest = new EthCallUnityRequest(_url);
+        var toyContractRequest = new EthCallUnityRequest(_url);
 
         // create a call input for AAC count
-        var aacTotalSupplyCallInput = _aacContractReader.CreateTotalSupplyCallInput();
+        var toyTotalSupplyCallInput = _toyContractReader.CreateTotalSupplyCallInput();
 
         // call request send and yield for response
-        yield return aacContractRequest.SendRequest(aacTotalSupplyCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
+        yield return toyContractRequest.SendRequest(toyTotalSupplyCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
 
         // decode the result
-        var count = _aacContractReader.DecodeTotalSupply(aacContractRequest.Result);
+        totalSupply = (int)_toyContractReader.DecodeTotalSupply(toyContractRequest.Result);
 
-        // initialize the aac data structure
-        manager.AacArray = new AacManager.AAC[count + 1];
+        // initialize the toy data structure
+        toyManager.InitializeToyTokensArray(totalSupply);
 
-        for (uint i = 1; i <= count; ++i)
+        for (int i = 1; i <= totalSupply; ++i)
         {
-            StartCoroutine(GetOneAac(i));
+            StartCoroutine(GetOneToy(i));
         }
     }
 
-    IEnumerator GetOneAac(uint index)
+    //-----------------------------------------------------------------------------------------------------------------
+    // GET ONE TOY
+    //-----------------------------------------------------------------------------------------------------------------
+    IEnumerator GetOneToy(int index)
     {
-        // create a unity call request
-        var aacContractRequest = new EthCallUnityRequest(_url);
+        // get uid from index
+        var toyContractRequest = new EthCallUnityRequest(_url);
+        var toyTokenByIndexCallInput = _toyContractReader.CreateTokenByIndexCallInput(index);
+        yield return toyContractRequest.SendRequest(toyTokenByIndexCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
+        long uid = (long)_toyContractReader.DecodeTokenByIndex(toyContractRequest.Result);
 
-        // create a call input for token by index
-        var aacTokenByIndexCallInput = _aacContractReader.CreateTokenByIndexCallInput(index);
+        // set Toy Token data
+        toyContractRequest = new EthCallUnityRequest(_url);
+        var getToyCallInput = _toyContractReader.CreateGetToyCallInput(uid);
+        yield return toyContractRequest.SendRequest(getToyCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
+        ToyContractReader.GetToyDto toyData = _toyContractReader.DecodeGetToyDto(toyContractRequest.Result);
+        toyManager.toyTokens[index].Owner = toyData.Owner;
+        toyManager.toyTokens[index].Uid = (long)toyData.UID;
+        toyManager.toyTokens[index].Timestamp = toyData.Timestamp;
+        toyManager.toyTokens[index].Exp = (int)toyData.Experience;
 
-        // call request send and yield for response
-        yield return aacContractRequest.SendRequest(aacTokenByIndexCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
+        // set value
+        StartCoroutine(GetValue(toyData.UID, index));
 
-        // decode the result
-        BigInteger uid = _aacContractReader.DecodeTokenByIndex(aacContractRequest.Result);
-
-        // create a new call request
-        aacContractRequest = new EthCallUnityRequest(_url);
-
-        // create call input for get AAC
-        var aacGetAacCallInput = _aacContractReader.CreateGetAacCallInput(uid);
-
-        // call request send and yield for response
-        yield return aacContractRequest.SendRequest(aacGetAacCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
-
-        // decode the result
-        var aac = _aacContractReader.DecodeGetAacDto(aacContractRequest.Result);
-
-        // fill the array
-        manager.AacArray[index] = new AacManager.AAC
+        // set metadata for Toy Tokens that have been linked (unlinked TOYs don't have metadata)
+        if (uid < 0xFFFFFFFFFFFFFF)
         {
-            owner = aac.Owner,
-            uid = uid,
-            timestamp = aac.Timestamp,
-            exp = aac.Experience,
-            data = aac.PublicData
-        };
+            HTTPRequest metadataRequest = new HTTPRequest(new System.Uri(_server + uid.ToString("X14")));
+            metadataRequest.Send();
+            yield return StartCoroutine(metadataRequest);
+
+            // set metadata
+            MetadataHtmlReader.Metadata metadata = _metadataReader.DeserializeMetadata(metadataRequest.Response.DataAsText);
+            toyManager.toyTokens[index].Name = metadata.Name;
+            toyManager.toyTokens[index].Description = metadata.Description;
+
+            // get image
+            metadataRequest = new HTTPRequest(new System.Uri(metadata.Image));
+            metadataRequest.Send();
+            yield return StartCoroutine(metadataRequest);
+            // TODO: Check the result is not null
+            toyManager.toyTokens[index].Image = GenerateSpriteFromTexture2D(metadataRequest.Response.DataAsTexture2D);
+        }
+        toyManager.toyUidToIndex.Add(uid, index);
+        
+        toysLoaded++;
+        if(toysLoaded == totalSupply)
+        {
+            StartCoroutine(GetOwnedToys(account.Account));
+        }
     }
 
+    //-----------------------------------------------------------------------------------------------------------------
+    // GET BALANCE
+    //-----------------------------------------------------------------------------------------------------------------
     public IEnumerator GetBalance(string address)
     {
         // get ETH balance
         var contractRequest = new EthGetBalanceUnityRequest(_url);
         yield return contractRequest.SendRequest(address, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
-        account.ETH = contractRequest.Result.Value;
+        tokenManager.SetAccountTokenBalance(tokenManager.fungibleTokens[0].address, contractRequest.Result.Value);
 
-        // get PLAY balance
-        var playContractRequest = new EthCallUnityRequest(_url);
-        var playBalanceOfCallInput = _playContractReader.CreateBalanceOfCallInput(address);
-        yield return playContractRequest.SendRequest(playBalanceOfCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
-        account.PLAY = _playContractReader.DecodeBalanceOf(playContractRequest.Result);
-
-        // get Locked balance
-        playContractRequest = new EthCallUnityRequest(_url);
-        var playGetLockedTokensCallInput = _playContractReader.CreateGetTotalLockedTokensCallInput(address);
-        yield return playContractRequest.SendRequest(playGetLockedTokensCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
-        account.Locked = _playContractReader.DecodeGetTotalLockedTokens(playContractRequest.Result);
-
-        // count colored token types and initialize colored balances in account
-        playContractRequest = new EthCallUnityRequest(_url);
-        var playColoredTokensCountCallInput = _playContractReader.CreateColoredTokenCountCallInput();
-        yield return playContractRequest.SendRequest(playColoredTokensCountCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
-        uint coloredTypes = _playContractReader.DecodeColoredTokenCount(playContractRequest.Result);
-        account.InitializeColoredBalances(coloredTypes);
-
-        // get colored token balances
-        for (uint i = 0; i < coloredTypes; ++i)
+        // get ERC20 balances (start from 1 because 0 is ETH)
+        for(int i = 1; i < _erc20Readers.Length; ++i)
         {
-            playContractRequest = new EthCallUnityRequest(_url);
-            var playGetColoredTokensCallInput = _playContractReader.CreateGetColoredTokenBalanceCallInput(address, i);
-            yield return playContractRequest.SendRequest(playGetColoredTokensCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
-            account.SetColor(i, _playContractReader.DecodeGetColoredTokenBalance(playContractRequest.Result));
+            StartCoroutine(GetErc20Balance(i, address));
         }
-
-        // get colored token names
-        for (uint i = 0; i < coloredTypes; ++i)
-        {
-            playContractRequest = new EthCallUnityRequest(_url);
-            var getColoredTokenNamesCallInput = _playContractReader.CreateGetColoredTokenCallInput(i);
-            yield return playContractRequest.SendRequest(getColoredTokenNamesCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
-            var coloredToken = _playContractReader.DecodeGetColoredToken(playContractRequest.Result);
-            account.SetColorName(i, coloredToken.Name);
-        }
-
-        account.OnFinishedLoadingBalances();
     }
 
-    public IEnumerator GetBalance(BigInteger uid)
+    //-----------------------------------------------------------------------------------------------------------------
+    // GET VALUE
+    //-----------------------------------------------------------------------------------------------------------------
+    public IEnumerator GetValue(BigInteger uid, int index)
     {
-        // Count Colored Token types and initialize colored balances in account
+        // get ETH balance
+        var toyContractRequest = new EthCallUnityRequest(_url);
+        var getExternalTokenCallInput = _toyContractReader.CreateGetExternalTokenBalanceCallInput(uid, "0xeBE2e5B17344ea58e5324C8bFf4f093e4CF1FbaC");
+        yield return toyContractRequest.SendRequest(getExternalTokenCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
+        var weiBalance = _toyContractReader.DecodeGetExternalTokenBalance(toyContractRequest.Result);
+
+        toyManager.toyTokens[index].ethValue = ((float)weiBalance / 5000000000)/1000000;
+
+        // get PLAY balance
+        toyContractRequest = new EthCallUnityRequest(_url);
+        getExternalTokenCallInput = _toyContractReader.CreateGetExternalTokenBalanceCallInput(uid, "0x9C2532Cf0B91CF7afa3f266a89C98e9CA39681A8");
+        yield return toyContractRequest.SendRequest(getExternalTokenCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
+        var pweiBalance = _toyContractReader.DecodeGetExternalTokenBalance(toyContractRequest.Result);
+        print("................................." + pweiBalance);
+        toyManager.toyTokens[index].playValue = ((float)pweiBalance / 6666666666666)/1000000;
+    }
+
+    //-----------------------------------------------------------------------------------------------------------------
+    // GET ERC-20 BALANCE
+    //-----------------------------------------------------------------------------------------------------------------
+    IEnumerator GetErc20Balance(int index, string tokenOwner)
+    {
+        var erc20ContractRequest = new EthCallUnityRequest(_url);
+        var balanceOfCallInput = _erc20Readers[index].CreateBalanceOfCallInput(tokenOwner);
+        yield return erc20ContractRequest.SendRequest(balanceOfCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
+        var balance = _erc20Readers[index].DecodeBalanceOf(erc20ContractRequest.Result);
+        tokenManager.SetAccountTokenBalance(tokenManager.fungibleTokens[index].address, balance);
+    }
+
+    //-----------------------------------------------------------------------------------------------------------------
+    // GET EXTERNAL TOKEN BALANCE
+    //-----------------------------------------------------------------------------------------------------------------
+    public IEnumerator GetExternalToken(BigInteger uid, string address)
+    {
+        var toyContractRequest = new EthCallUnityRequest(_url);
+        var getExternalTokenCallInput = _toyContractReader.CreateGetExternalTokenBalanceCallInput(uid, address);
+        yield return toyContractRequest.SendRequest(getExternalTokenCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
+        var balance = _toyContractReader.DecodeGetExternalTokenBalance(toyContractRequest.Result);
+        tokenManager.SetExternalTokenBalance(address, balance);
+    }
+
+    //-----------------------------------------------------------------------------------------------------------------
+    // INITIALIZE COLORED TOKENS
+    //-----------------------------------------------------------------------------------------------------------------
+    public IEnumerator InitializeColoredTokens()
+    {
+        // count colored token types and initialize colored balances in account
         var playContractRequest = new EthCallUnityRequest(_url);
         var playColoredTokensCountCallInput = _playContractReader.CreateColoredTokenCountCallInput();
         yield return playContractRequest.SendRequest(playColoredTokensCountCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
         uint coloredTypes = _playContractReader.DecodeColoredTokenCount(playContractRequest.Result);
-        account.InitializeColoredBalances(coloredTypes);
+        tokenManager.InitializeColoredBalances(coloredTypes);
 
-        // get Colored Token balances
-        for (uint i = 0; i < coloredTypes; ++i)
+        // get colored token names
+        for (uint i = 0; i < tokenManager.coloredTokens.Length; ++i)
         {
-            playContractRequest = new EthCallUnityRequest(_url);
-            var playGetColoredTokensCallInput = _playContractReader.CreateGetColoredTokenBalanceCallInput(uid, i);
-            yield return playContractRequest.SendRequest(playGetColoredTokensCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
-            account.SetColor(i, _playContractReader.DecodeGetTotalLockedTokens(playContractRequest.Result));
+            StartCoroutine(GetColoredTokenName(i));
         }
+    }
 
-        account.OnFinishedLoadingBalances();
+    //-----------------------------------------------------------------------------------------------------------------
+    // GET COLORED TOKEN BALANCE
+    //-----------------------------------------------------------------------------------------------------------------
+    IEnumerator GetColoredTokenName(uint i)
+    {
+        var playContractRequest = new EthCallUnityRequest(_url);
+        var getColoredTokenNamesCallInput = _playContractReader.CreateGetColoredTokenCallInput(i);
+        yield return playContractRequest.SendRequest(getColoredTokenNamesCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
+        var coloredToken = _playContractReader.DecodeGetColoredToken(playContractRequest.Result);
+        tokenManager.SetColorName(i, coloredToken.Name);
+    }
+
+    //-----------------------------------------------------------------------------------------------------------------
+    // GET TOY COLORED BALANCES
+    //-----------------------------------------------------------------------------------------------------------------
+    public void GetToyColoredBalance(BigInteger uid)
+    {
+        // get colored token balances
+        for (uint i = 0; i < tokenManager.coloredTokens.Length; ++i)
+        {
+            StartCoroutine(GetOneColoredBalance(i, uid));
+        }
+    }
+
+    private Sprite GenerateSpriteFromTexture2D(Texture2D value)
+    {
+        return Sprite.Create(value, new Rect(0, 0, value.width, value.height), new Vector2(0.5f, 0.5f));
+    }
+
+    //-----------------------------------------------------------------------------------------------------------------
+    // GET ONE COLORED BALANCE
+    //-----------------------------------------------------------------------------------------------------------------
+    IEnumerator GetOneColoredBalance(uint i, BigInteger uid)
+    {
+        var playContractRequest = new EthCallUnityRequest(_url);
+        var playGetColoredTokensCallInput = _playContractReader.CreateGetColoredTokenBalanceCallInput(uid, i);
+        yield return playContractRequest.SendRequest(playGetColoredTokensCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
+        tokenManager.SetColorBalance(i, _playContractReader.DecodeGetColoredTokenBalance(playContractRequest.Result));
     }
 }

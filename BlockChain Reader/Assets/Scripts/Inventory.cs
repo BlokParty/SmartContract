@@ -2,13 +2,11 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using BestHTTP;
 
 public class Inventory : MonoBehaviour {
 
-    public uint numberOfOwnedAacs;
-    AacContractReader.GetAacDto[] ownedAacs;
-    public AacContractReader.GetAacDto GetOwnedAac(uint index) { return ownedAacs[index]; }
-    public void SetOwnedAac(uint index, AacContractReader.GetAacDto value) { ownedAacs[index] = value; }
+    public List<long> ownedToyUids;
 
     [System.Serializable]
     public class Slot
@@ -28,43 +26,47 @@ public class Inventory : MonoBehaviour {
         string favorite;
         public Text Favorite { get; set; }
     }
+
+    public long uidToDisplay = 0;
+
     [SerializeField]
     Slot[] slots;
-    string url = "https://www.blok.party/aacs/";
-
-    int viewingIndex;
-    [SerializeField]
-    Image viewingAac;
 
     [SerializeField]
-    Text aacUid;
+    ToyTokenManager toyManager;
     [SerializeField]
-    Text aacAge;
+    FungibleTokenManager tokenManager;
     [SerializeField]
-    Text aacExp;
+    ContractService contract;
+
+    [SerializeField]
+    Image viewingToy;
+
+    [SerializeField]
+    Text toyUid;
+    [SerializeField]
+    Text toyAge;
+    [SerializeField]
+    Text toyExp;
+    [SerializeField]
+    Text toyDescription;
     [SerializeField]
     GameObject inventoryButton;
 
     [SerializeField]
     Sprite defaultSprite;
     [SerializeField]
-    Sprite EmptyAacSprite;
-    [SerializeField]
-    Sprite Charizard;
+    Sprite EmptyToySprite;
 
     public void OnFinishedLoading()
     {
-        for(int i = 0; i < ownedAacs.Length; ++i)
+        for(int i = 0; i < ownedToyUids.Count; ++i)
         {
-            string metadataUrl = url + ownedAacs[i].UID + ".png";
-            // get image from JSON
-            // texture2d aacImg = callAacApi(metadataUrl);
-            // images[i].sprite = makeTextureIntoSprite(aacImg);
-
-            if(ownedAacs[i].UID > 0xFFFFFFFFFFFFFF)
+            int globalIndex = toyManager.toyUidToIndex[ownedToyUids[i]];
+            if (ownedToyUids[i] > 0xFFFFFFFFFFFFFF)
             {
-                // empty AAC
-                slots[i].MyImage.sprite = EmptyAacSprite;
+                // empty TOY Token
+                slots[i].MyImage.sprite = EmptyToySprite;
                 slots[i].MyImage.enabled = true;
                 slots[i].Age.text = "N/A";
                 slots[i].Type.text = "Empty";
@@ -73,66 +75,89 @@ public class Inventory : MonoBehaviour {
                 slots[i].Value.text = "0";
                 slots[i].Favorite.text = "";
             }
-            else if(i == 0)
+            else
             {
-                slots[i].MyImage.sprite = Charizard;
+                if (toyManager.toyTokens[globalIndex].Image != null) { slots[i].MyImage.sprite = toyManager.toyTokens[globalIndex].Image; }
                 slots[i].MyImage.enabled = true;
-                slots[i].Age.text = GenerateAgeString(ownedAacs[i].Timestamp);
-                slots[i].Type.text = ownedAacs[i].UID.ToString("X14").Substring(0, 2);
-                slots[i].Name.text = "";
-                slots[i].Exp.text = ownedAacs[i].Experience.ToString();
+                slots[i].Age.text = GenerateAgeString(toyManager.toyTokens[globalIndex].Timestamp);
+                slots[i].Type.text = ownedToyUids[i].ToString("X14").Substring(0,2);
+                slots[i].Name.text = toyManager.toyTokens[globalIndex].Name;
+                slots[i].Exp.text = toyManager.toyTokens[globalIndex].Exp.ToString();
+                slots[i].Value.text = "$" + (toyManager.toyTokens[globalIndex].ethValue + toyManager.toyTokens[globalIndex].playValue);
                 slots[i].Favorite.text = "";
+            }
+        }
+        if(ownedToyUids.Count > 0)
+        {
+            viewingToy.enabled = true;
+            if(uidToDisplay != 0)
+            {
+                for (int i = 0; i < ownedToyUids.Count; ++i)
+                {
+                    if (uidToDisplay == ownedToyUids[i])
+                    {
+                        DisplayToy(i);
+                        uidToDisplay = 0;
+                    }
+                }
             }
             else
             {
-                slots[i].MyImage.sprite = defaultSprite;
-                slots[i].MyImage.enabled = true;
-                slots[i].Age.text = GenerateAgeString(ownedAacs[i].Timestamp);
-                slots[i].Type.text = ownedAacs[i].UID.ToString("X14").Substring(0,2);
-                slots[i].Name.text = "";
-                slots[i].Exp.text = ownedAacs[i].Experience.ToString();
-                slots[i].Favorite.text = "";
+                DisplayToy(0);
             }
-        }
-        if(ownedAacs.Length > 0)
-        {
-            viewingAac.enabled = true;
-            DisplayAac(0);
         }
     }
 
-    public void DisplayAac(int index)
+    public void DisplayToy(int index)
     {
-        if(ownedAacs == null || index > ownedAacs.Length)
+        int globalIndex = toyManager.toyUidToIndex[ownedToyUids[index]];
+        if(ownedToyUids == null || index > ownedToyUids.Count)
         {
             return;
         }
-        else if(ownedAacs[index].UID < 0xFFFFFFFFFFFFFF)
+        else if(ownedToyUids[index] < 0xFFFFFFFFFFFFFF)
         {
-            aacUid.text = "UID:  " + (ownedAacs[index].UID.ToString("X14"));
-            aacAge.text = "Age:  " + GenerateAgeString(ownedAacs[index].Timestamp);
-            aacExp.text = "Exp:  " + ownedAacs[index].Experience;
+            toyUid.text = "UID:  " + ownedToyUids[index].ToString("X14");
+            toyAge.text = "Age:  " + slots[index].Age.text;
+            toyExp.text = "Exp:  " + slots[index].Exp.text;
+            toyDescription.text = toyManager.toyTokens[globalIndex].Description;
         }
         else
         {
-            aacUid.text = "UID:  ???";
-            aacAge.text = "Age:  N/A";
-            aacExp.text = "Exp:  0";
+            toyUid.text = "UID:  ???";
+            toyAge.text = "Age:  N/A";
+            toyExp.text = "Exp:  0";
+            toyDescription.text = "Empty TOY Token. Link this with a scannable toy to track the toy digitally";
         }
-        viewingIndex = index;
-        viewingAac.sprite = slots[index].MyImage.sprite;
-        print(index);
+        viewingToy.sprite = slots[index].MyImage.sprite;
+        tokenManager.SetFungibleTokenBalances(ownedToyUids[index]);
+        contract.GetToyColoredBalance(ownedToyUids[index]);
     }
 
-    public void InitializeOwnedAacs(uint length)
+    public void InitializeOwnedToys(int length)
     {
-        numberOfOwnedAacs = length;
-        ownedAacs = new AacContractReader.GetAacDto[length];
+        if (slots != null)
+        {
+            if(slots.Length > length)
+            {
+                for (int i = length; i < slots.Length; ++i)
+                {
+                    if (i > 8)
+                    {
+                        GameObject.Destroy(transform.Find(" (" + i + ")").gameObject);
+                    }
+                    else
+                    {
+                        ClearSlot(i);
+                    }
+                }
+            }
+        }
         slots = new Slot[length];
         for(int i = 0; i < length; ++i)
         {
             slots[i] = new Slot();
-            if (i > 17) { MakeNewButton(i); }
+            if (i > 8) { MakeNewButton(i); }
             slots[i].MyImage = transform.Find(" (" + i + ")").transform.Find("Image").GetComponent<Image>();
             slots[i].Age = transform.Find(" (" + i + ")").transform.Find("Age").transform.Find("Text").GetComponent<Text>();
             slots[i].Type = transform.Find(" (" + i + ")").transform.Find("Type").transform.Find("Text").GetComponent<Text>();
@@ -144,45 +169,16 @@ public class Inventory : MonoBehaviour {
         }
     }
 
-    public void SortByAge()
+    private string GenerateAgeString(long timestamp)
     {
-        System.Array.Sort(ownedAacs, delegate (AacContractReader.GetAacDto a, AacContractReader.GetAacDto b)
-        {
-            return a.Timestamp.CompareTo(b.Timestamp);
-        });
-        OnFinishedLoading();
-        print("is this thing on?");
-    }
-
-    public void SortByType()
-    {
-        System.Array.Sort(ownedAacs, delegate (AacContractReader.GetAacDto a, AacContractReader.GetAacDto b)
-        {
-            return a.UID.CompareTo(b.UID);
-        });
-        OnFinishedLoading();
-        print("yes");
-    }
-
-    public void SortByXP()
-    {
-        System.Array.Sort(ownedAacs, delegate (AacContractReader.GetAacDto a, AacContractReader.GetAacDto b)
-        {
-            return a.Experience.CompareTo(b.Experience);
-        });
-        OnFinishedLoading();
-    }
-
-    private string GenerateAgeString(uint timestamp)
-    {
-        System.TimeSpan span = System.DateTime.Now.Subtract(new System.DateTime(1970, 1, 1, 0, 0, 0));
-        uint age = (uint)span.TotalSeconds - timestamp;
+        System.TimeSpan span = System.DateTime.UtcNow.Subtract(new System.DateTime(1970, 1, 1, 0, 0, 0));
+        long age = (long)span.TotalSeconds - timestamp;
         age /= 60;
-        if(age < 180){ return age + " minutes"; }
+        if(age < 180){ return age + " Minutes"; }
         age /= 60;
-        if(age < 72){ return age + " hours"; }
+        if(age < 72){ return age + " Hours"; }
         age /= 24;
-        return age + " days";
+        return age + " Days";
     }
 
     private void MakeNewButton(int i)
@@ -191,6 +187,18 @@ public class Inventory : MonoBehaviour {
         newButton.name = " (" + i + ")";
         newButton.transform.SetParent(transform);
         newButton.transform.localScale = Vector3.one;
-        newButton.GetComponent<Button>().onClick.AddListener(delegate { DisplayAac(i); });
+        newButton.GetComponent<Button>().onClick.AddListener(delegate { DisplayToy(i); });
+    }
+
+    private void ClearSlot(int i)
+    {
+        slots[i].MyImage.enabled = false;
+        slots[i].Age.text = "";
+        slots[i].Type.text = "";
+        slots[i].Name.text = "";
+        slots[i].Exp.text = "";
+        slots[i].Value.text = "";
+        slots[i].Favorite.text = "";
+        transform.Find(" (" + i + ")").GetComponent<Button>().enabled = false;
     }
 }

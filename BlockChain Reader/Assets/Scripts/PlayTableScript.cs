@@ -8,35 +8,109 @@ using System;
 
 public class PlayTableScript : MonoBehaviour {
     [SerializeField]
-    ContractService service;
+    ContractService contractService;
     [SerializeField]
-    InputField input;
+    ToyTokenManager toyManager;
+    [SerializeField]
+    AccountManager accountManager;
+    [SerializeField]
+    Inventory inventory;
 
     private void Awake()
     {
         PTTableTop.Initialize((new GameObject()).AddComponent<PTPlayer>());
-        PTTableTop.OnSmartPiece += GetBalancesFromRfid;
+        PTTableTop.OnSmartPiece += DisplayToyData;
     }
 
-    private void GetBalancesFromRfid(PTSmartPiece sp)
+    private void Update()
     {
-        string addressBuffer = "0x00000000000000000000000000";
-        string uid = sp.id.Substring(0, 14);
-        string spAddress = addressBuffer + uid;
-        StartCoroutine(service.GetBalance(spAddress));
-    }
 
-    public void GetBalancesFromInput()
-    {
-        BigInteger uid = BigInteger.Parse(input.text);
-        // true if input is an address
-        if (uid > 0xFFFFFFFFFFFFFF)
+        if (Input.GetKeyDown(KeyCode.T))
         {
-            StartCoroutine(service.GetBalance(input.text));
+            long id = long.Parse("0436957A963380", System.Globalization.NumberStyles.HexNumber);
+
+            int index = toyManager.toyUidToIndex[id];
+            string owner = toyManager.toyTokens[index].Owner;
+            if (owner == accountManager.Account)
+            {
+                for (int i = 0; i < inventory.ownedToyUids.Count; ++i)
+                {
+                    if (id == inventory.ownedToyUids[i])
+                    {
+                        inventory.DisplayToy(i);
+                    }
+                }
+            }
+            else
+            {
+                accountManager.Account = owner;
+                inventory.uidToDisplay = id;
+                StartCoroutine(contractService.GetOwnedToys(owner));
+                StartCoroutine(contractService.GetBalance(owner));
+            }
+        }
+
+        if (Input.GetKeyDown(KeyCode.C))
+        {
+            long id = long.Parse("0436957A963380", System.Globalization.NumberStyles.HexNumber);
+
+            int index = toyManager.toyUidToIndex[id];
+            string owner = toyManager.toyTokens[index].Owner;
+            if (owner == accountManager.Account)
+            {
+                for (int i = 0; i < inventory.ownedToyUids.Count; ++i)
+                {
+                    if (id == inventory.ownedToyUids[i])
+                    {
+                        inventory.DisplayToy(i);
+                    }
+                }
+            }
+            else
+            {
+                accountManager.SetAccount(owner);
+                inventory.uidToDisplay = id;
+                StartCoroutine(contractService.GetOwnedToys(owner));
+                StartCoroutine(contractService.GetBalance(owner));
+            }
+        }
+    }
+
+    private void DisplayToyData(PTSmartPiece sp)
+    {
+        if (sp.id != "null")
+        {
+            Debug.Log("Scanned SmartPiece Id is " + sp.id);
+            string trimmedId = sp.id.Substring(0, 14);
+            long id = long.Parse(trimmedId, System.Globalization.NumberStyles.HexNumber);
+            if (toyManager.toyUidToIndex.ContainsKey(id))
+            {
+
+                int index = toyManager.toyUidToIndex[id];
+                string owner = toyManager.toyTokens[index].Owner;
+                if (owner == accountManager.Account)
+                {
+                    for (int i = 0; i < inventory.ownedToyUids.Count; ++i)
+                    {
+                        if (id == inventory.ownedToyUids[i])
+                        {
+                            inventory.DisplayToy(i);
+                        }
+                    }
+                }
+                else
+                {
+                    accountManager.SetAccount(owner);
+                    inventory.uidToDisplay = id;
+                    StartCoroutine(contractService.GetOwnedToys(owner));
+                    StartCoroutine(contractService.GetBalance(owner));
+                }
+            }
         }
         else
         {
-            StartCoroutine(service.GetBalance(uid));
+            Debug.Log("id was null");
         }
     }
+    
 }
