@@ -352,7 +352,9 @@ contract ToyTransfers is ToyOwnership {
     ///  `_tokenId` is not a valid NFT. When transfer is complete, checks if
     ///  `_to` is a smart contract (code size > 0). If so, it calls
     ///  `onERC721Received` on `_to` and throws if the return value is not
-    ///  `0x150b7a02`.
+    ///  `0x150b7a02`. If TOY Token is linked to an external NFT, this function
+    ///  calls TransferFrom from the external address. Throws if this contract
+    ///  is not an approved operator for the external NFT.
     /// @param _from The current owner of the NFT
     /// @param _to The new owner
     /// @param _tokenId The NFT to transfer
@@ -407,10 +409,12 @@ contract ToyTransfers is ToyOwnership {
     /// @dev Throws unless `msg.sender` is the current owner, an authorized
     ///  operator, or the approved address for this NFT. Throws if `_from` is
     ///  not the current owner. Throws if `_to` is the zero address. Throws if
-    ///  `_tokenId` is not a valid NFT. When transfer is complete, checks if
-    ///  `_to` is a smart contract (code size > 0). If so, it calls
-    ///  `onERC721Received` on `_to` and throws if the return value is not
-    ///  `0x150b7a02`.
+    ///  `_tokenId` is not a valid NFT. If TOY Token is linked to an external
+    ///  NFT, this function calls TransferFrom from the external address.
+    ///  Throws if this contract is not an approved operator for the external
+    ///  NFT. When transfer is complete, checks if `_to` is a smart contract
+    ///  (code size > 0). If so, it calls `onERC721Received` on `_to` and
+    ///  throws if the return value is not `0x150b7a02`.
     /// @param _from The current owner of the NFT
     /// @param _to The new owner
     /// @param _tokenId The NFT to transfer
@@ -472,7 +476,10 @@ contract ToyTransfers is ToyOwnership {
     /// @dev Throws unless `msg.sender` is the current owner, an authorized
     ///  operator, or the approved address for this NFT. Throws if `_from` is
     ///  not the current owner. Throws if `_to` is the zero address. Throws if
-    ///  `_tokenId` is not a valid NFT.
+    ///  `_tokenId` is not a valid NFT. If TOY Token is linked to an external
+    ///  NFT, this function calls TransferFrom from the external address.
+    ///  Throws if this contract is not an approved operator for the external
+    ///  NFT.
     /// @param _from The current owner of the NFT
     /// @param _to The new owner
     /// @param _tokenId The NFT to transfer
@@ -859,23 +866,20 @@ interface PlayInterface {
     function balanceOf(address tokenOwner) external view returns (uint);
     
     //-------------------------------------------------------------------------
-    /// @notice Send `(tokens/1000000000000000000).fixed(0,18)` PLAY from 
-    ///  `from` to `to`, then lock for `numberOfYears` years.
-    /// @dev Throws if amount to send is zero. Throws if `msg.sender` has
-    ///  insufficient allowance for transfer. Throws if `from` has 
-    ///  insufficient balance for transfer. Throws if `to` is the zero
-    ///  address. Emits transfer and lock events.
-    /// @param from The token owner whose PLAY is being sent. Sender must be
+    /// @notice Lock `(tokens/1000000000000000000).fixed(0,18)` PLAY from 
+    ///  `from` for `numberOfYears` years.
+    /// @dev Throws if amount to lock is zero. Throws if numberOfYears is zero
+    ///  or greater than maximumLockYears. Throws if `msg.sender` has
+    ///  insufficient allowance to lock. Throws if `from` has insufficient
+    ///  balance to lock.
+    /// @param from The token owner whose PLAY is being locked. Sender must be
     ///  an approved spender.
-    /// @param to The address to where PLAY is being sent and locked.
-    /// @param tokens The number of tokens to send (in pWei).
+    /// @param numberOfYears The number of years the tokens will be locked.
+    /// @param tokens The number of tokens to lock (in pWei).
     //-------------------------------------------------------------------------
-    function transferFromAndLock(
-        address from, 
-        address to, 
-        uint numberOfYears, 
-        uint tokens
-    ) external;
+    function lockFrom(address from, uint numberOfYears, uint tokens) 
+        external
+        returns(bool); 
 }
 
 
@@ -896,7 +900,7 @@ contract ToyCreation is Ownable, ExternalTokenHandler, ToyInterfaceSupport {
     //  Tokens with a uid greater than the buffer are unlinked.
     uint constant uidBuffer = 0x0100000000000000; // 14 zeroes
     // PLAY Token Contract object to interface with.
-    PlayInterface play = PlayInterface(0x9C2532Cf0B91CF7afa3f266a89C98e9CA39681A8);
+    PlayInterface play = PlayInterface(0xe2427cfEB5C330c007B8599784B97b65b4a3A819);
 
     //-------------------------------------------------------------------------
     /// @notice Update PLAY Token contract variable with new contract address.
@@ -925,15 +929,14 @@ contract ToyCreation is Ownable, ExternalTokenHandler, ToyInterfaceSupport {
     ///  address sufficient allowance.
     //-------------------------------------------------------------------------
     function mint() external {
-        play.transferFromAndLock (msg.sender, owner, 2, priceToMint);
+        play.lockFrom (msg.sender, 2, priceToMint);
 
         uint uid = uidBuffer + toyArray.length;
-        uint index = toyArray.push(ToyToken(msg.sender, uid, block.timestamp, 0, ""));
+        uint index = toyArray.push(ToyToken(msg.sender, uid, 0, 0, ""));
         uidToToyIndex[uid] = index - 1;
 
         emit Transfer(0, msg.sender, uid);
     }
-
 
     //-------------------------------------------------------------------------
     /// @notice Send and lock PLAY to mint a new empty TOY Token for 'to'.
@@ -944,13 +947,32 @@ contract ToyCreation is Ownable, ExternalTokenHandler, ToyInterfaceSupport {
     /// @param _to The address to deduct PLAY Tokens from and send new TOY Token to.
     //-------------------------------------------------------------------------
     function mintAndSend(address _to) external {
-        play.transferFromAndLock (msg.sender, owner, 2, priceToMint);
+        play.lockFrom (msg.sender, 2, priceToMint);
 
         uint uid = uidBuffer + toyArray.length;
-        uint index = toyArray.push(ToyToken(_to, uid, block.timestamp, 0, ""));
+        uint index = toyArray.push(ToyToken(_to, uid, 0, 0, ""));
         uidToToyIndex[uid] = index - 1;
 
         emit Transfer(0, _to, uid);
+    }
+
+    //-------------------------------------------------------------------------
+    /// @notice Send and lock PLAY to mint `_amount` new empty TOY Tokens for
+    ///  yourself.
+    /// @dev Sender must have approved this contract address as an authorized
+    ///  spender with at least "priceToMint" x `_amount` PLAY. Throws if the
+    ///  sender has insufficient PLAY. Throws if sender has not granted this
+    ///  contract's address sufficient allowance.
+    //-------------------------------------------------------------------------
+    function mintBulk(uint _amount) external {
+        play.lockFrom (msg.sender, 2, priceToMint * _amount);
+
+        for (uint i = 0; i < _amount; ++i) {
+            uint uid = uidBuffer + toyArray.length;
+            uint index = toyArray.push(ToyToken(msg.sender, uid, 0, 0, ""));
+            uidToToyIndex[uid] = index - 1;
+            emit Transfer(0, msg.sender, uid);
+        }
     }
 
     //-------------------------------------------------------------------------
@@ -988,8 +1010,62 @@ contract ToyCreation is Ownable, ExternalTokenHandler, ToyInterfaceSupport {
         toy.uid = uint(_newUid);
         // set any data
         toy.toyData = _data;
+        // reset the timestamp
+        toy.timestamp = now;
 
         emit Link(_toyId, uint(_newUid));
+    }
+
+    //-------------------------------------------------------------------------
+    /// @notice Change TOY Token UIDs to new UIDs for multiple TOY Tokens.
+    ///  Writes any data passed through '_data' into all the TOY Tokens' data.
+    /// @dev Throws if any TOY Token's UID does not exist. Throws if sender is
+    ///  not approved to operate for any TOY Token. Throws if any '_toyId' is
+    ///  smaller than 8 bytes. Throws if any '_newUid' is bigger than 7 bytes. 
+    ///  Throws if any '_newUid' is zero. Throws if '_newUid' is already taken.
+    ///  Throws if array parameters are not the same length.
+    /// @param _newUid The UID of the RFID chip to link to the TOY Token
+    /// @param _toyId The UID of the empty TOY Token to link
+    /// @param _data A byte string of data to attach to the TOY Token
+    //-------------------------------------------------------------------------
+    function linkBulk(
+        bytes7[] _newUid, 
+        uint[] _toyId, 
+        bytes _data
+    ) external {
+        require (_newUid.length == _toyId.length, "Array lengths not equal");
+        for (uint i = 0; i < _newUid.length; ++i) {
+            ToyToken storage toy = toyArray[uidToToyIndex[_toyId[i]]];
+            // sender must be authorized operator
+            require (
+                msg.sender == toy.owner ||
+                msg.sender == idToApprovedAddress[_toyId[i]] ||
+                operatorApprovals[toy.owner][msg.sender],
+                "Not authorized to operate for this TOY Token"
+            );
+            // _toyId must be an empty TOY Token
+            require (_toyId[i] > uidBuffer, "TOY Token already linked");
+            // _newUid field cannot be empty or greater than 7 bytes
+            require (_newUid[i] > 0 && uint(_newUid[i]) < UID_MAX, "Invalid new UID");
+            // a TOY Token with the new UID must not currently exist
+            require (
+                uidToToyIndex[uint(_newUid[i])] == 0, 
+                "TOY Token with 'newUID' already exists"
+            );
+
+            // set new UID's mapping to index to old UID's mapping
+            uidToToyIndex[uint(_newUid[i])] = uidToToyIndex[_toyId[i]];
+            // reset old UID's mapping to index
+            uidToToyIndex[_toyId[i]] = 0;
+            // set TOY Token's UID to new UID
+            toy.uid = uint(_newUid[i]);
+            // set any data
+            toy.toyData = _data;
+            // reset the timestamp
+            toy.timestamp = now;
+
+            emit Link(_toyId[i], uint(_newUid[i]));
+        }
     }
 
     //-------------------------------------------------------------------------
@@ -1021,6 +1097,7 @@ contract ToyCreation is Ownable, ExternalTokenHandler, ToyInterfaceSupport {
         linkedExternalNfts[_externalAddress][_externalId] = true;
     }
 }
+
 
 //-----------------------------------------------------------------------------
 /// @title TOY Token Interface

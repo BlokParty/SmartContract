@@ -54,9 +54,9 @@ public class Inventory : MonoBehaviour {
     GameObject inventoryButton;
 
     [SerializeField]
-    Sprite defaultSprite;
+    Sprite UnregisteredToySprite;
     [SerializeField]
-    Sprite EmptyToySprite;
+    Sprite UnlinkedToySprite;
 
     public void OnFinishedLoading()
     {
@@ -65,8 +65,8 @@ public class Inventory : MonoBehaviour {
             int globalIndex = toyManager.toyUidToIndex[ownedToyUids[i]];
             if (ownedToyUids[i] > 0xFFFFFFFFFFFFFF)
             {
-                // empty TOY Token
-                slots[i].MyImage.sprite = EmptyToySprite;
+                // Unlinked TOY Token
+                slots[i].MyImage.sprite = UnlinkedToySprite;
                 slots[i].MyImage.enabled = true;
                 slots[i].Age.text = "N/A";
                 slots[i].Type.text = "Empty";
@@ -108,6 +108,16 @@ public class Inventory : MonoBehaviour {
         }
     }
 
+    public void DisplayUnregistered(string uid)
+    {
+        toyUid.text = "UID:  " + uid;
+        toyAge.text = "Age:  N/A";
+        toyExp.text = "Exp:  0";
+        toyDescription.text = "Unregistered toy. Link this to a TOY Token to track it digitally";
+        viewingToy.sprite = UnregisteredToySprite;
+        tokenManager.ResetBalances();
+    }
+
     public void DisplayToy(int index)
     {
         int globalIndex = toyManager.toyUidToIndex[ownedToyUids[index]];
@@ -127,7 +137,7 @@ public class Inventory : MonoBehaviour {
             toyUid.text = "UID:  ???";
             toyAge.text = "Age:  N/A";
             toyExp.text = "Exp:  0";
-            toyDescription.text = "Empty TOY Token. Link this with a scannable toy to track the toy digitally";
+            toyDescription.text = "Unlinked TOY Token. Link this with a scannable toy to track the toy digitally";
         }
         viewingToy.sprite = slots[index].MyImage.sprite;
         tokenManager.SetFungibleTokenBalances(ownedToyUids[index]);

@@ -74,12 +74,18 @@ public class PlayTableScript : MonoBehaviour {
                 StartCoroutine(contractService.GetBalance(owner));
             }
         }
+
+        if (Input.GetKeyDown(KeyCode.R))
+        {
+            inventory.DisplayUnregistered("ABCDEF01234567");
+        }
     }
 
     private void DisplayToyData(PTSmartPiece sp)
     {
         if (sp.id != "null")
         {
+            GetComponent<AudioSource>().Play();
             Debug.Log("Scanned SmartPiece Id is " + sp.id);
             string trimmedId = sp.id.Substring(0, 14);
             long id = long.Parse(trimmedId, System.Globalization.NumberStyles.HexNumber);
@@ -105,6 +111,10 @@ public class PlayTableScript : MonoBehaviour {
                     StartCoroutine(contractService.GetOwnedToys(owner));
                     StartCoroutine(contractService.GetBalance(owner));
                 }
+            }
+            else
+            {
+                inventory.DisplayUnregistered(sp.id.Substring(0,14));
             }
         }
         else

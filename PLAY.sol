@@ -716,8 +716,6 @@ contract ColorToken is LockToken, Ownable {
         require (to < UID_MAX, "Invalid UID");
         // If TOY Token #uid is not owned, it does not exist yet.
         require(toy.ownerOf(to) != address(0), "TOY Token does not exist");
-        // colorIndex must be less than the number of colored tokens.
-        require (colorIndex < coloredTokens.length, "Invalid color index");
         
         // Initiate lock. Fails if sender's balance is too low.
         lock(2, tokens);
@@ -726,6 +724,47 @@ contract ColorToken is LockToken, Ownable {
         coloredTokens[colorIndex].balances[to] += tokens;
         // emit color transfer event
         emit DepositColor(to, colorIndex, tokens);
+    }
+
+    //-------------------------------------------------------------------------
+    /// @notice Locks `(tokens/1000000000000000000).fixed(0,18)` PLAY tokens
+    ///  for 2 years, then deposits the same number of colored tokens with 
+    ///  index `colorIndex` into multiple TOY Tokens.
+    /// @dev Throws if tokens to deposit is zero. Throws if colorIndex is
+    ///  greater than number of colored tokens. Throws if `msg.sender` has
+    ///  insufficient balance to lock. Throws if `uid` is greater than
+    ///  maximum UID value. Throws if any token does not have an owner. Throws
+    ///  if sender is not the creator of the colored token.
+    /// @param to The Unique Identifier of the TOY Token receiving tokens.
+    /// @param colorIndex The index of the color to spend.
+    /// @param tokens The number of colored tokens to spend (in pWei).
+    //-------------------------------------------------------------------------
+    function depositBulk (uint colorIndex, uint[] to, uint tokens)
+        external 
+        notZero(tokens)
+    {
+        // colorIndex must be valid color
+        require (colorIndex < coloredTokens.length, "Invalid color index");
+        // sender must be colored token creator
+        require (
+            msg.sender == coloredTokens[colorIndex].creator,
+            "Not authorized to deposit this color"
+        );
+
+        // Initiate lock. Fails if sender's balance is too low.
+        lock(2, tokens * to.length);
+
+        for(uint i = 0; i < to.length; ++i){
+            // uid must be a valid UID
+            require (to[i] < UID_MAX, "Invalid UID");
+            // If TOY Token #uid is not owned, it does not exist yet.
+            require(toy.ownerOf(to[i]) != address(0), "TOY Token does not exist");
+
+            // add tokens to TOY Token #UID
+            coloredTokens[colorIndex].balances[to[i]] += tokens;
+            // emit color transfer event
+            emit DepositColor(to[i], colorIndex, tokens);
+        }
     }
 
     //-------------------------------------------------------------------------

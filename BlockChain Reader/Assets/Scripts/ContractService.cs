@@ -189,7 +189,6 @@ public class ContractService : MonoBehaviour {
         getExternalTokenCallInput = _toyContractReader.CreateGetExternalTokenBalanceCallInput(uid, "0x9C2532Cf0B91CF7afa3f266a89C98e9CA39681A8");
         yield return toyContractRequest.SendRequest(getExternalTokenCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
         var pweiBalance = _toyContractReader.DecodeGetExternalTokenBalance(toyContractRequest.Result);
-        print("................................." + pweiBalance);
         toyManager.toyTokens[index].playValue = ((float)pweiBalance / 6666666666666)/1000000;
     }
 

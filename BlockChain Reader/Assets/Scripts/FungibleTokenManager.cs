@@ -96,4 +96,19 @@ public class FungibleTokenManager : MonoBehaviour {
     {
         fungibleTokens[addressToTokenIndex[address]].SetAndStringifyBalance(tokens);
     }
+
+    //-----------------------------------------------------------------------------------------------------------------
+    // RESET
+    //-----------------------------------------------------------------------------------------------------------------
+    public void ResetBalances()
+    {
+        for (int i = 0; i < fungibleTokens.Length; ++i)
+        {
+            depositedExternalTokens[i].SetAndStringifyBalance(0);
+        }
+        for (int i = 0; i < coloredTokens.Length; ++i)
+        {
+            coloredTokens[i].SetAndStringifyBalance(0);
+        }
+    }
 }
