@@ -23,10 +23,13 @@ public class ToyTokenManager : MonoBehaviour {
     public ToyToken[] toyTokens;
     [SerializeField]
     public Dictionary<long, int> toyUidToIndex;
+    [SerializeField]
+    public Dictionary<string, Sprite> urlToSprite;
 
     private void Awake()
     {
         toyUidToIndex = new Dictionary<long, int>();
+        urlToSprite = new Dictionary<string, Sprite>();
     }
 
     public void InitializeToyTokensArray(int totalSupply)
