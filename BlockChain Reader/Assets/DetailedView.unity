@@ -2596,8 +2596,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 178.05, y: 0}
+  m_SizeDelta: {x: 336.1, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &397828116
 MonoBehaviour:
@@ -5858,7 +5858,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &786759529
 RectTransform:
   m_ObjectHideFlags: 0
@@ -7673,7 +7673,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &1044733824
 RectTransform:
   m_ObjectHideFlags: 0
@@ -9385,7 +9385,7 @@ Prefab:
     - target: {fileID: 114843259299622022, guid: 056aa30ddfb75c047bd635c5e2075bde,
         type: 2}
       propertyPath: address
-      value: 0x9C2532Cf0B91CF7afa3f266a89C98e9CA39681A8
+      value: 0x55079fd6049513a5073eC1f873cB839d9ABD2a7c
       objectReference: {fileID: 0}
     - target: {fileID: 114610569912787920, guid: 056aa30ddfb75c047bd635c5e2075bde,
         type: 2}
@@ -13146,7 +13146,7 @@ MonoBehaviour:
   tokenName: PLAYnetwork Token
   symbol: PNT
   decimals: 18
-  address: 0x9C2532Cf0B91CF7afa3f266a89C98e9CA39681A8
+  address: 0x55079fd6049513a5073eC1f873cB839d9ABD2a7c
   buttons: {fileID: 1128098861}
 --- !u!114 &1957319012
 MonoBehaviour:

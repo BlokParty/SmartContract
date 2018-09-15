@@ -134,16 +134,20 @@ public class ContractService : MonoBehaviour {
             yield return StartCoroutine(metadataRequest);
 
             // set metadata
-            MetadataHtmlReader.Metadata metadata = _metadataReader.DeserializeMetadata(metadataRequest.Response.DataAsText);
-            toyManager.toyTokens[index].Name = metadata.Name;
-            toyManager.toyTokens[index].Description = metadata.Description;
+            if (metadataRequest.Response.DataAsText != null)
+            {
+                MetadataHtmlReader.Metadata metadata = _metadataReader.DeserializeMetadata(metadataRequest.Response.DataAsText);
+                toyManager.toyTokens[index].Name = metadata.Name;
+                toyManager.toyTokens[index].Description = metadata.Description;
 
-            // get image
-            metadataRequest = new HTTPRequest(new System.Uri(metadata.Image));
-            metadataRequest.Send();
-            yield return StartCoroutine(metadataRequest);
-            // TODO: Check the result is not null
-            toyManager.toyTokens[index].Image = GenerateSpriteFromTexture2D(metadataRequest.Response.DataAsTexture2D);
+                toyManager.toyTokens[index].Image = GenerateSpriteFromTexture2D(metadataRequest.Response.DataAsTexture2D);
+            }
+            else
+            {
+                toyManager.toyTokens[index].Name = "N/A";
+                toyManager.toyTokens[index].Description = "";
+                toyManager.toyTokens[index].Image = inventory.UnlinkedToySprite;
+            }
         }
         toyManager.toyUidToIndex.Add(uid, index);
         
@@ -178,7 +182,7 @@ public class ContractService : MonoBehaviour {
     {
         // get ETH balance
         var toyContractRequest = new EthCallUnityRequest(_url);
-        var getExternalTokenCallInput = _toyContractReader.CreateGetExternalTokenBalanceCallInput(uid, "0xeBE2e5B17344ea58e5324C8bFf4f093e4CF1FbaC");
+        var getExternalTokenCallInput = _toyContractReader.CreateGetExternalTokenBalanceCallInput(uid, "0x54cc27B4405FC9fAB144179f40A0422C7d2d3Cde");
         yield return toyContractRequest.SendRequest(getExternalTokenCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
         var weiBalance = _toyContractReader.DecodeGetExternalTokenBalance(toyContractRequest.Result);
 
@@ -186,7 +190,7 @@ public class ContractService : MonoBehaviour {
 
         // get PLAY balance
         toyContractRequest = new EthCallUnityRequest(_url);
-        getExternalTokenCallInput = _toyContractReader.CreateGetExternalTokenBalanceCallInput(uid, "0x9C2532Cf0B91CF7afa3f266a89C98e9CA39681A8");
+        getExternalTokenCallInput = _toyContractReader.CreateGetExternalTokenBalanceCallInput(uid, "0x55079fd6049513a5073eC1f873cB839d9ABD2a7c");
         yield return toyContractRequest.SendRequest(getExternalTokenCallInput, Nethereum.RPC.Eth.DTOs.BlockParameter.CreateLatest());
         var pweiBalance = _toyContractReader.DecodeGetExternalTokenBalance(toyContractRequest.Result);
         toyManager.toyTokens[index].playValue = ((float)pweiBalance / 6666666666666)/1000000;

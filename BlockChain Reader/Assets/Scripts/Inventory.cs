@@ -56,7 +56,7 @@ public class Inventory : MonoBehaviour {
     [SerializeField]
     Sprite UnregisteredToySprite;
     [SerializeField]
-    Sprite UnlinkedToySprite;
+    public Sprite UnlinkedToySprite;
 
     public void OnFinishedLoading()
     {
