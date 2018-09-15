@@ -140,7 +140,13 @@ public class ContractService : MonoBehaviour {
                 toyManager.toyTokens[index].Name = metadata.Name;
                 toyManager.toyTokens[index].Description = metadata.Description;
 
-                toyManager.toyTokens[index].Image = GenerateSpriteFromTexture2D(metadataRequest.Response.DataAsTexture2D);
+                metadataRequest = new HTTPRequest(new System.Uri(metadata.Image));
+                metadataRequest.Send();
+                yield return StartCoroutine(metadataRequest);
+                if (metadataRequest.Response != null)
+                {
+                    toyManager.toyTokens[index].Image = GenerateSpriteFromTexture2D(metadataRequest.Response.DataAsTexture2D);
+                }
             }
             else
             {
@@ -265,7 +271,11 @@ public class ContractService : MonoBehaviour {
 
     private Sprite GenerateSpriteFromTexture2D(Texture2D value)
     {
-        return Sprite.Create(value, new Rect(0, 0, value.width, value.height), new Vector2(0.5f, 0.5f));
+        if(value != null)
+        {
+            return Sprite.Create(value, new Rect(0, 0, value.width, value.height), new Vector2(0.5f, 0.5f));
+        }
+        return inventory.UnlinkedToySprite;
     }
 
     //-----------------------------------------------------------------------------------------------------------------
