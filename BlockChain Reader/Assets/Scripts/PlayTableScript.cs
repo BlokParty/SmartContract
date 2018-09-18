@@ -18,8 +18,8 @@ public class PlayTableScript : MonoBehaviour {
 
     private void Awake()
     {
-        PTTableTop.Initialize((new GameObject()).AddComponent<PTPlayer>());
-        PTTableTop.OnSmartPiece += DisplayToyData;
+        //PTTableTop.Initialize((new GameObject()).AddComponent<PTPlayer>());
+        //PTTableTop.OnSmartPiece += DisplayToyData;
     }
 
     private void Update()
@@ -81,7 +81,7 @@ public class PlayTableScript : MonoBehaviour {
         }
     }
 
-    private void DisplayToyData(PTSmartPiece sp)
+    public void DisplayToyData(SmartPiece sp)
     {
         if (sp.id != "null")
         {
