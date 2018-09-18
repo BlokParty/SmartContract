@@ -83,17 +83,32 @@ public class PlayTableScript : MonoBehaviour {
 
     private void DisplayToyData(PTSmartPiece sp)
     {
+        // if ID is null, no smart piece was read
         if (sp.id != "null")
         {
             GetComponent<AudioSource>().Play();
             Debug.Log("Scanned SmartPiece Id is " + sp.id);
+
+            // trim ID to its 7 byte UID
             string trimmedId = sp.id.Substring(0, 14);
+
+            // if ID begins with AF, we know its UID is only 4 bytes. Set the last 3 bytes to 0.
+            if (trimmedId[0] == 'A')
+            {
+                trimmedId = trimmedId.Substring(0, 8);
+                trimmedId += "000000";
+            }
+
+            // convert UID string to long
             long id = long.Parse(trimmedId, System.Globalization.NumberStyles.HexNumber);
+
+            // check if UID is registered in toyManager
             if (toyManager.toyUidToIndex.ContainsKey(id))
             {
-
                 int index = toyManager.toyUidToIndex[id];
                 string owner = toyManager.toyTokens[index].Owner;
+
+                // check if scanned toy's owner is current wallet
                 if (owner == accountManager.Account)
                 {
                     for (int i = 0; i < inventory.ownedToyUids.Count; ++i)
@@ -104,6 +119,7 @@ public class PlayTableScript : MonoBehaviour {
                         }
                     }
                 }
+                // if scanned toy's owner is not current wallet, reload inventory
                 else
                 {
                     accountManager.SetAccount(owner);
@@ -112,11 +128,13 @@ public class PlayTableScript : MonoBehaviour {
                     StartCoroutine(contractService.GetBalance(owner));
                 }
             }
+            // If UID is not registered in toyManager, display unregistered toy
             else
             {
                 inventory.DisplayUnregistered(sp.id.Substring(0,14));
             }
         }
+        // no smartpiece read, only a touch
         else
         {
             Debug.Log("id was null");
