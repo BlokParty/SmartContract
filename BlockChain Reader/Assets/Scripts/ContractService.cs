@@ -36,7 +36,7 @@ public class ContractService : MonoBehaviour {
     private Erc20Reader[] _erc20Readers;
 
     private string _url = @"https://mainnet.infura.io/v3/697bb76db0504ef29768e3a8df898713";
-    private string _server = @"http://52.9.230.48:8090/toy_token/";
+    private string _server = @"http://52.9.230.48:8100/toy_token/";
 
     // Use this for initialization
     void Start () {
@@ -179,9 +179,11 @@ public class ContractService : MonoBehaviour {
         toyManager.toyUidToIndex.Add(uid, index);
         
         toysLoaded++;
+        GameObject.Find("UID").GetComponent<Text>().text = "Loading... " + toysLoaded + " / " + totalSupply;
         if(toysLoaded == totalSupply)
         {
             StartCoroutine(GetOwnedToys(account.Account));
+            GameObject.Find("Loading").SetActive(false);
         }
     }
 
