@@ -36,7 +36,7 @@ public class ContractService : MonoBehaviour {
     private Erc20Reader[] _erc20Readers;
 
     private string _url = @"https://mainnet.infura.io/v3/697bb76db0504ef29768e3a8df898713";
-    private string _server = @"http://52.9.230.48:8100/toy_token/";
+    private string _server = @"http://52.9.230.48:8100/toy_token";
 
     // Use this for initialization
     void Start () {
@@ -126,6 +126,93 @@ public class ContractService : MonoBehaviour {
         // set value
         StartCoroutine(GetValue(toyData.UID, index));
 
+        // default image is Unregistered
+        toyManager.toyTokens[index].Name = "N/A";
+        toyManager.toyTokens[index].Description = "";
+        toyManager.toyTokens[index].Image = inventory.UnregisteredToySprite;
+
+        toyManager.toyUidToIndex.Add(uid, index);
+
+        toysLoaded++;
+        GameObject.Find("UID").GetComponent<Text>().text = "Loading... " + toysLoaded + " / " + totalSupply;
+        if(toysLoaded == totalSupply)
+        {
+            yield return ParseAllMetadata();
+            StartCoroutine(GetOwnedToys(account.Account));
+            GameObject.Find("Loading").SetActive(false);
+        }
+    }
+
+    //-----------------------------------------------------------------------------------------------------------------
+    // PARSE ALL METADATA
+    //-----------------------------------------------------------------------------------------------------------------
+    IEnumerator ParseAllMetadata()
+    {
+        List<MetadataHtmlReader.Metadata> metadataBlob;
+        
+        HTTPRequest metadataRequest = new HTTPRequest(new System.Uri(_server));
+        metadataRequest.SetHeader("Content-Type", "application/json; charset=UTF-8");
+        metadataRequest.Send();
+        
+        yield return StartCoroutine(metadataRequest);
+
+        metadataBlob = _metadataReader.DeserializeMetadataBlob(metadataRequest.Response.DataAsText);
+        Debug.LogError(metadataBlob[0].Uid);
+        Debug.LogError(metadataBlob[1].Uid);
+        for (int i = 0; i < metadataBlob.Count; ++i)
+        {
+            long id = 0xFFFFFFFFFFFFFF;
+            long.TryParse(metadataBlob[i].Uid, System.Globalization.NumberStyles.HexNumber, null, out id);
+            
+            if (!toyManager.toyUidToIndex.ContainsKey(id))
+            {
+                Debug.LogError(id);
+            }
+            else
+            {
+                int index = toyManager.toyUidToIndex[id];
+                if (id < 0xFFFFFFFFFFFFFF)
+                {
+                    toyManager.toyTokens[index].Name = metadataBlob[i].Name;
+                    toyManager.toyTokens[index].Description = metadataBlob[i].Description;
+
+                    if (toyManager.urlToSprite.ContainsKey(metadataBlob[i].Image))
+                    {
+                        toyManager.toyTokens[index].Image = toyManager.urlToSprite[metadataBlob[i].Image];
+                    }
+                    else
+                    {
+                        metadataRequest = new HTTPRequest(new System.Uri(metadataBlob[i].Image));
+                        metadataRequest.Send();
+                        yield return StartCoroutine(metadataRequest);
+
+                        if (toyManager.urlToSprite.ContainsKey(metadataBlob[i].Image))
+                        {
+                            toyManager.toyTokens[index].Image = toyManager.urlToSprite[metadataBlob[i].Image];
+                        }
+                        else if (metadataRequest.Response != null)
+                        {
+                            if (metadataRequest.Response.DataAsTexture2D != null)
+                            {
+                                Sprite metadataSprite = GenerateSpriteFromTexture2D(metadataRequest.Response.DataAsTexture2D);
+                                toyManager.toyTokens[index].Image = metadataSprite;
+                                toyManager.urlToSprite.Add(metadataBlob[i].Image, metadataSprite);
+                            }
+                            else
+                            {
+                                toyManager.toyTokens[index].Image = inventory.UnlinkedToySprite;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    toyManager.toyTokens[index].Image = inventory.UnlinkedToySprite;
+                }
+            }
+            
+        }
+        /*
         // set metadata for Toy Tokens that have been linked (unlinked TOYs don't have metadata)
         if (uid < 0xFFFFFFFFFFFFFF)
         {
@@ -176,16 +263,9 @@ public class ContractService : MonoBehaviour {
                 toyManager.toyTokens[index].Image = inventory.UnlinkedToySprite;
             }
         }
-        toyManager.toyUidToIndex.Add(uid, index);
-        
-        toysLoaded++;
-        GameObject.Find("UID").GetComponent<Text>().text = "Loading... " + toysLoaded + " / " + totalSupply;
-        if(toysLoaded == totalSupply)
-        {
-            StartCoroutine(GetOwnedToys(account.Account));
-            GameObject.Find("Loading").SetActive(false);
-        }
+        */
     }
+
 
     //-----------------------------------------------------------------------------------------------------------------
     // GET BALANCE

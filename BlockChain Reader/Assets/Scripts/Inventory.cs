@@ -54,7 +54,7 @@ public class Inventory : MonoBehaviour {
     GameObject inventoryButton;
 
     [SerializeField]
-    Sprite UnregisteredToySprite;
+    public Sprite UnregisteredToySprite;
     [SerializeField]
     public Sprite UnlinkedToySprite;
 
