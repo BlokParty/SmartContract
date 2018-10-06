@@ -65,7 +65,7 @@ public class GameRoles : MonoBehaviour {
         StartCoroutine(ExposeCurrentRole());
     }
 
-    IEnumerator ExposeCurrentRole()
+    public IEnumerator ExposeCurrentRole()
     {
         HTTPRequest request = new HTTPRequest(new System.Uri(bgServer + "?rfid=" + uidToAssign));
         request.SetHeader("Content-Type", "application/json; charset=UTF-8");
@@ -78,11 +78,30 @@ public class GameRoles : MonoBehaviour {
             jsonToParse = jsonToParse.Substring(0, jsonToParse.Length - 1);
 
             var characterData = JsonUtility.FromJson<BattleGridRoles.DeletableObject>(jsonToParse);
-            for(int i = 0; i < roleButtons.Length; ++i)
+            if (characterData.type == "mainmenu")
             {
-                if (characterData.property_cardName == bgRoles.roles[i].property_cardName)
+                roleButtons[31].GetComponent<Image>().color = selected;
+            }
+            else
+            {
+                for (int i = 0; i < roleButtons.Length; ++i)
                 {
-                    roleButtons[i].GetComponent<Image>().color = selected;
+
+                    if (characterData.component == "none")
+                    {
+                        if (characterData.property_cardName == bgRoles.roles[i].property_cardName &&
+                            characterData.property_caster == bgRoles.roles[i].property_caster)
+                        {
+                            roleButtons[i].GetComponent<Image>().color = selected;
+                        }
+                    }
+                    else
+                    {
+                        if (characterData.component == bgRoles.roles[i].component)
+                        {
+                            roleButtons[i].GetComponent<Image>().color = selected;
+                        }
+                    }
                 }
             }
         }
@@ -159,7 +178,6 @@ public class GameRoles : MonoBehaviour {
     {
         Debug.Log("Request Finished! Text received: " + response.DataAsText);
     }
-
 
     public void ToggleAssign()
     {

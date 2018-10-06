@@ -134,7 +134,7 @@ public class ContractService : MonoBehaviour {
         toyManager.toyUidToIndex.Add(uid, index);
 
         toysLoaded++;
-        GameObject.Find("UID").GetComponent<Text>().text = "Loading... " + toysLoaded + " / " + totalSupply;
+        GameObject.Find("LoadingPercentage").GetComponent<Text>().text = "Loading... " + toysLoaded + " / " + totalSupply;
         if(toysLoaded == totalSupply)
         {
             yield return ParseAllMetadata();
@@ -157,8 +157,6 @@ public class ContractService : MonoBehaviour {
         yield return StartCoroutine(metadataRequest);
 
         metadataBlob = _metadataReader.DeserializeMetadataBlob(metadataRequest.Response.DataAsText);
-        Debug.LogError(metadataBlob[0].Uid);
-        Debug.LogError(metadataBlob[1].Uid);
         for (int i = 0; i < metadataBlob.Count; ++i)
         {
             long id = 0xFFFFFFFFFFFFFF;
@@ -166,7 +164,7 @@ public class ContractService : MonoBehaviour {
             
             if (!toyManager.toyUidToIndex.ContainsKey(id))
             {
-                Debug.LogError(id);
+                Debug.LogError(id + " is present in the server, but not present on the blockchain");
             }
             else
             {

@@ -38,6 +38,8 @@ public class Inventory : MonoBehaviour {
     FungibleTokenManager tokenManager;
     [SerializeField]
     ContractService contract;
+    [SerializeField]
+    GameRoles gameRoles;
 
     [SerializeField]
     Image viewingToy;
@@ -142,6 +144,10 @@ public class Inventory : MonoBehaviour {
         viewingToy.sprite = slots[index].MyImage.sprite;
         tokenManager.SetFungibleTokenBalances(ownedToyUids[index]);
         contract.GetToyColoredBalance(ownedToyUids[index]);
+        if(gameRoles.gameObject.activeInHierarchy == true)
+        {
+            StartCoroutine(gameRoles.ExposeCurrentRole());
+        }
     }
 
     public void InitializeOwnedToys(int length)

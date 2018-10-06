@@ -51,7 +51,6 @@ public class MetadataHtmlReader {
 
     public List<Metadata> DeserializeMetadataBlob(string result)
     {
-        Debug.LogError(result);
         return JsonConvert.DeserializeObject<List<Metadata>>(result);
     }
 }
